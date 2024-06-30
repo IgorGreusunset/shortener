@@ -1,12 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
+	"github.com/go-chi/chi/v5"
 )
 
 //Переменные используем в качестве БД
@@ -28,11 +28,16 @@ func generateShort() string{
 
 func main() {
 	db = map[string]string{}
-	mux := http.NewServeMux()
+	/*mux := http.NewServeMux()
 	mux.HandleFunc(`/`, shortURL)
-	mux.HandleFunc(`/{id}`, fullURL)
+	mux.HandleFunc(`/{id}`, fullURL)*/
 
-	err := http.ListenAndServe(`:8080`, mux)
+	r := chi.NewRouter()
+	
+	r.Get("/{id}/", fullURL)
+	r.Post("/", shortURL)
+
+	err := http.ListenAndServe(`:8080`, r)
 	if err != nil{
 		panic(err)
 	}
@@ -81,10 +86,8 @@ func fullURL(res http.ResponseWriter, req *http.Request) {
 	short, _ := strings.CutPrefix(string(path), "/")
 	short, _ = strings.CutSuffix(short, "/")
 
-	fmt.Println(short)
-
 	full, ok := db[short]
-	fmt.Println(full)
+
 	if !ok {
 		res.WriteHeader(http.StatusBadRequest)
 		return

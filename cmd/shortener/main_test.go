@@ -22,7 +22,7 @@ func TestShortURL(t *testing.T) {
 	}{
 		{
 			name: "normal test",
-			body: "https://mail.ru/",
+			body: "https://mail.ru",
 			want: want{
 				code: 201,
 				contentType: "text/plain",
@@ -73,7 +73,7 @@ func TestFullURL(t *testing.T) {
 		},
 		{
 			name: "normal 2",
-			request: "/g7RETf01/",
+			request: "/g7RETf01",
 			want: want{code: 307, location: "https://mail.ru/"},
 		},
 		{
