@@ -45,6 +45,8 @@ func TestShortURL(t *testing.T) {
 
 			result := w.Result()
 
+			defer result.Body.Close()
+
 			assert.Equal(t, test.want.code, result.StatusCode)
 			assert.Equal(t, test.want.contentType, result.Header.Get("Content-Type"))
 		})
@@ -90,6 +92,8 @@ func TestFullURL(t *testing.T) {
 
 			result := w.Result()
 
+			defer result.Body.Close()
+			
 			assert.Equal(t, test.want.code, result.StatusCode)
 			assert.Equal(t, test.want.location, result.Header.Get("Location"))
 		})
