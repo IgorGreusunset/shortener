@@ -34,7 +34,7 @@ func main() {
 
 	r := chi.NewRouter()
 	
-	r.Get("/{id}/", fullURL)
+	r.Get("/{id}", fullURL)
 	r.Post("/", shortURL)
 
 	err := http.ListenAndServe(`:8080`, r)
