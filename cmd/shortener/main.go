@@ -32,12 +32,14 @@ func main() {
 	mux.HandleFunc(`/`, shortURL)
 	mux.HandleFunc(`/{id}`, fullURL)*/
 
+	parseFlags()
+
 	r := chi.NewRouter()
 	
 	r.Get("/{id}", fullURL)
 	r.Post("/", shortURL)
 
-	err := http.ListenAndServe(`:8080`, r)
+	err := http.ListenAndServe(flagRunAddr, r)
 	if err != nil{
 		panic(err)
 	}
@@ -70,7 +72,7 @@ func shortURL(res http.ResponseWriter, req *http.Request) {
 
 	//записываем в "БД"
 	db[short] = string(reqBody)
-	resBody := `http://localhost:8080/` + short
+	resBody := `http://localhost`+ flagBaseAddr + `/` + short
 	res.Write([]byte(resBody))
 }
 
