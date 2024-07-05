@@ -12,6 +12,7 @@ import (
 //Переменные используем в качестве БД
 var db map[string]string
 
+var BASE_URL = `https://localhost`
 
 //generateShort генерирует строку, которая будет использоваться длясокращения URL
 func generateShort() string{
@@ -27,6 +28,8 @@ func generateShort() string{
 }
 
 func main() {
+
+
 	db = map[string]string{}
 	/*mux := http.NewServeMux()
 	mux.HandleFunc(`/`, shortURL)
@@ -72,7 +75,7 @@ func shortURL(res http.ResponseWriter, req *http.Request) {
 
 	//записываем в "БД"
 	db[short] = string(reqBody)
-	resBody := flagBaseAddr + `/` + short
+	resBody := BASE_URL + flagBaseAddr + `/` + short
 	res.Write([]byte(resBody))
 }
 
