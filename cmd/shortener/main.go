@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
+
 	"github.com/go-chi/chi/v5"
 )
 
@@ -38,7 +40,9 @@ func main() {
 	r.Get("/{id}", fullURL)
 	r.Post("/", shortURL)
 
-	err := http.ListenAndServe(flagRunAddr, r)
+	add := "http://" + flagRunAddr
+
+	err := http.ListenAndServe(add, r)
 	if err != nil{
 		panic(err)
 	}
