@@ -72,7 +72,7 @@ func shortURL(res http.ResponseWriter, req *http.Request) {
 
 	//записываем в "БД"
 	db[short] = string(reqBody)
-	resBody := `http://localhost`+ flagBaseAddr + `/` + short
+	resBody := flagBaseAddr + `/` + short
 	res.Write([]byte(resBody))
 }
 
