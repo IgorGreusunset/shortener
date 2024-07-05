@@ -10,8 +10,8 @@ var flagRunAddr, flagBaseAddr string
 
 
 func parseFlags() {
-	flag.StringVar(&flagRunAddr, "a", ":8080", "port to run server")
-	flag.StringVar(&flagBaseAddr, "b", ":8080", "base port for short url")
+	flag.StringVar(&flagRunAddr, "a", "http://localhost:8080", "port to run server")
+	flag.StringVar(&flagBaseAddr, "b", "http://localhost:8080", "base port for short url")
 	flag.Parse()
 	if flagRunAddr != ":8080" {
 		flagBaseAddr = flagRunAddr
