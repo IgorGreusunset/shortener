@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -24,35 +23,33 @@ func main() {
 
 	logger.Initialize()
 
+	var db storage.Repository
 
-	//Открываем файл-хранилище
-	file, err := os.OpenFile(config.File, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("Error during opening file with shorten urls: %v", err)
-	}
-
-	//Создаем новое хранилище
-	db := storage.NewStorage(map[string]model.URL{})
-	db.SetFile(file)
-
-	var database *sql.DB
-
-	if config.DataBase != "" {
-		database, err = sql.Open("pgx", config.DataBase)
+	switch {
+	case config.DataBase != "" :
+		db, err := storage.NewDatabase(config.DataBase)
 		if err != nil {
 			log.Fatalf("Error during database connection: %v", err)
 		}
-		defer database.Close()
-	}
+		defer db.DB.Close()
+	default:	
+		file, err := os.OpenFile(config.File, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("Error during opening file with shorten urls: %v", err)
+		}
+		db := storage.NewStorage(map[string]model.URL{})
+		db.SetFile(file)
 
-	//Наполняем хранилище данными из файла
-	err = db.FillFromFile(file)
-	if err != nil {
-		logger.Log.Infof("Error during reading from file with shorten urls: %v", err)
-	}
+			//Наполняем хранилище данными из файла
+		err = db.FillFromFile(file)
+		if err != nil {
+			logger.Log.Infof("Error during reading from file with shorten urls: %v", err)
+		}
+		file.Close()
+}
 
 
-	file.Close()
+
 	
 
 	//Обертки для handlers, чтобы использовать их в роутере
@@ -69,7 +66,7 @@ func main() {
 	}
 
 	PingHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		handlers.PingHandler(database, res, req)
+		handlers.PingHandler(db, res, req)
 	}
 
 	//Подключаем middlewares

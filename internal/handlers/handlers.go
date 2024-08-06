@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"io"
 	"log"
@@ -39,7 +38,10 @@ func PostHandler(db storage.Repository, res http.ResponseWriter, req *http.Reque
 
 	//Создаем новый экземпляр URL структуры и записываем его в хранилище
 	urlToAdd := model.NewURL(id, string(reqBody))
-	db.Create(urlToAdd)
+	if err := db.Create(urlToAdd); err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	//Записываем заголовок и тело ответа
 	res.Header().Set("Content-type", "text/plain")
@@ -92,7 +94,10 @@ func APIPostHandler(db storage.Repository, res http.ResponseWriter, req *http.Re
 
 	//Создаем модель и записываем в storage
 	urlToAdd := model.NewURL(id, urlFromRequest.URL)
-	db.Create(urlToAdd)
+	if err := db.Create(urlToAdd); err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	//Формируем и сериализируем тело ответа
 	result := config.Base + `/` + id
@@ -110,7 +115,7 @@ func APIPostHandler(db storage.Repository, res http.ResponseWriter, req *http.Re
 	res.Write(response)
 }
 
-func PingHandler(db *sql.DB, res http.ResponseWriter, req *http.Request) {
+func PingHandler(db storage.Repository, res http.ResponseWriter, req *http.Request) {
 	err := db.Ping()
 	if err == nil {
 		res.WriteHeader(http.StatusOK)

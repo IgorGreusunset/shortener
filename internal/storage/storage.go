@@ -14,7 +14,6 @@ type Storage struct {
 	db map[string]model.URL
 	file *os.File
 	mu sync.RWMutex
-	w *bufio.Writer
 	scan *bufio.Scanner
 }
 
@@ -28,12 +27,13 @@ func (s *Storage) SetFile(f *os.File) {
 }
 
 type Repository interface {
-	Create(record *model.URL)
+	Create(record *model.URL) error
 	GetByID(id string) (model.URL, bool)
+	Ping() error
 }
 
 //Метод для создания новой записи в хранилище
-func (s *Storage) Create(record *model.URL) {
+func (s *Storage) Create(record *model.URL) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -44,9 +44,10 @@ func (s *Storage) Create(record *model.URL) {
 		name := s.file.Name()
 		if err := saveToFile(*record, name); err != nil {
 			log.Printf("Error write to file: %v", err)
-			return
+			return err
 		}
 	}
+	return nil
 }
 
 
@@ -58,6 +59,10 @@ func (s *Storage) GetByID(id string)(model.URL, bool) {
 
 	url, ok := s.db[id]
 	return url, ok
+}
+
+func (s *Storage) Ping() error {
+	return nil
 }
 
 
