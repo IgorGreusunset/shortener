@@ -6,6 +6,7 @@ import (
 	"time"
 
 	model "github.com/IgorGreusunset/shortener/internal/app"
+	"github.com/IgorGreusunset/shortener/internal/logger"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -22,10 +23,10 @@ func NewDatabase(dbConfig string) (*DBStorageAdapter, error) {
 	ctx := context.Background()
 
 	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS shorten_urls (
-		"uuid" INTEGER PRIMARY KEY,
-		"short_url" VARCHAR(50),
-		"original_url" TEXT,
-		"created" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		uuid SERIAL PRIMARY KEY,
+		short_url VARCHAR(50),
+		original_url TEXT,
+		created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`)
 	if err != nil {
 		return nil, err
@@ -40,7 +41,7 @@ func (db *DBStorageAdapter) Create(record *model.URL) error {
 		return err
 	}
 
-	_, err = tx.Exec(`INSERT INTO shorten_urls(short_url, original_url) VALUES (?, ?);`, record.ID, record.FullURL)
+	_, err = tx.Exec(`INSERT INTO shorten_urls(short_url, original_url, created) VALUES ($1, $2, $3);`, record.ID, record.FullURL, time.Now())
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -55,10 +56,11 @@ func (db *DBStorageAdapter) GetByID(id string) (model.URL, bool) {
 		FullURL string
 	)
 
-	row := db.DB.QueryRow(`SELECT uuid, short_url, original_url FROM shorten_urls WHERE short_url = ?`, id)
+	row := db.DB.QueryRow(`SELECT uuid, short_url, original_url FROM shorten_urls WHERE short_url = $1;`, id)
 
 	err := row.Scan(&UUID, &ID, &FullURL)
 	if err != nil {
+		logger.Log.Debugln(err)
 		return model.URL{}, false
 	}
 
