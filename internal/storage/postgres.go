@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	model "github.com/IgorGreusunset/shortener/internal/app"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -67,5 +68,7 @@ func (db *DBStorageAdapter) GetByID(id string) (model.URL, bool) {
 }
 
 func (db *DBStorageAdapter) Ping() error {
-	return db.DB.PingContext(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return db.DB.PingContext(ctx)
 }
