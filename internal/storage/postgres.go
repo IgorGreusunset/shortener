@@ -21,12 +21,12 @@ func NewDatabase(dbConfig string) (*DBStorageAdapter, error) {
 
 	ctx := context.Background()
 
-	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXIST shorten_urls (
-		'uuid' INTEGER PRIMARY KEY,
-		'short_url' VARCHAR(50),
-		'original_url' TEXT,
-		'created' TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	);`)
+	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS shorten_urls (
+		"uuid" INTEGER PRIMARY KEY,
+		"short_url" VARCHAR(50),
+		"original_url" TEXT,
+		"created" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`)
 	if err != nil {
 		return nil, err
 	}
