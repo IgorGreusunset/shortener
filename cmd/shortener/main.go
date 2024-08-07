@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-    _ "github.com/jackc/pgx/v5/stdlib"
+
 	"github.com/IgorGreusunset/shortener/cmd/config"
 	model "github.com/IgorGreusunset/shortener/internal/app"
 	"github.com/IgorGreusunset/shortener/internal/handlers"
@@ -12,6 +12,7 @@ import (
 	"github.com/IgorGreusunset/shortener/internal/middleware"
 	"github.com/IgorGreusunset/shortener/internal/storage"
 	"github.com/go-chi/chi/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 
@@ -25,31 +26,35 @@ func main() {
 
 	var db storage.Repository
 
-	switch {
-	case config.DataBase != "" :
-		db, err := storage.NewDatabase(config.DataBase)
-		if err != nil {
-			log.Fatalf("Error during database connection: %v", err)
-		}
-		defer db.DB.Close()
-	default:	
-		file, err := os.OpenFile(config.File, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			log.Fatalf("Error during opening file with shorten urls: %v", err)
-		}
-		db := storage.NewStorage(map[string]model.URL{})
-		db.SetFile(file)
+	switch config.DataBase {
+		case "" :
+			file, err := os.OpenFile(config.File, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+			if err != nil {
+				log.Fatalf("Error during opening file with shorten urls: %v", err)
+			}
+			database := storage.NewStorage(map[string]model.URL{})
+			database.SetFile(file)
+	
+				//Наполняем хранилище данными из файла
+			err = database.FillFromFile(file)
+			if err != nil {
+				logger.Log.Infof("Error during reading from file with shorten urls: %v", err)
+			}
+			file.Close()
 
-			//Наполняем хранилище данными из файла
-		err = db.FillFromFile(file)
-		if err != nil {
-			logger.Log.Infof("Error during reading from file with shorten urls: %v", err)
-		}
-		file.Close()
-}
+			db = database
 
+		default:
+			var err error
+			database, err := storage.NewDatabase(config.DataBase)
+			if err != nil {
+				log.Fatalf("Error during database connection: %v", err)
+			}
+			defer database.DB.Close()
 
+			db = database
 
+	}
 	
 
 	//Обертки для handlers, чтобы использовать их в роутере

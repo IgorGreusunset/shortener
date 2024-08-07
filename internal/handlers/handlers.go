@@ -39,6 +39,7 @@ func PostHandler(db storage.Repository, res http.ResponseWriter, req *http.Reque
 	//Создаем новый экземпляр URL структуры и записываем его в хранилище
 	urlToAdd := model.NewURL(id, string(reqBody))
 	if err := db.Create(urlToAdd); err != nil {
+		logger.Log.Debugf(err.Error())
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
