@@ -67,5 +67,5 @@ func (db *DBStorageAdapter) GetByID(id string) (model.URL, bool) {
 }
 
 func (db *DBStorageAdapter) Ping() error {
-	return db.DB.Ping()
+	return db.DB.PingContext(context.Background())
 }
