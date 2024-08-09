@@ -74,3 +74,21 @@ func (db *DBStorageAdapter) Ping() error {
 	defer cancel()
 	return db.DB.PingContext(ctx)
 }
+
+func (db *DBStorageAdapter) CreateBatch(urls []model.URL) error {
+	tx, err := db.DB.Begin()
+
+	if err != nil {
+		return err
+	}
+
+	for _, u := range urls {
+		_, err = tx.Exec(`INSERT INTO shorten_urls(short_url, original_url, created) VALUES ($1, $2, $3);`, u.ID, u.FullURL, time.Now())
+		if err != nil{
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit()
+}

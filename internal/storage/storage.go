@@ -30,6 +30,7 @@ type Repository interface {
 	Create(record *model.URL) error
 	GetByID(id string) (model.URL, bool)
 	Ping() error
+	CreateBatch([]model.URL) error
 }
 
 //Метод для создания новой записи в хранилище
@@ -99,5 +100,14 @@ func saveToFile (url model.URL, file string) error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *Storage) CreateBatch(urls []model.URL) error{
+	for _, u := range urls {
+		if err := s.Create(&u); err != nil {
+			return err
+		}
+	}
 	return nil
 }

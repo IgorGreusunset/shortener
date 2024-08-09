@@ -74,6 +74,10 @@ func main() {
 		handlers.PingHandler(db, res, req)
 	}
 
+	BatchHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
+		handlers.BathcHandler(db, res, req)
+	}
+
 	//Подключаем middlewares
 	router.Use(middleware.WithLogging)
 	router.Use(middleware.GzipMiddleware)
@@ -82,6 +86,7 @@ func main() {
 	router.Get(`/{id}`, GetHandlerWrapper)
 	router.Post(`/api/shorten`, APIPostHandlerWrapper)
 	router.Get(`/ping`, PingHandlerWrapper)
+	router.Post(`/api/shorten/batch`, BatchHandlerWrapper)
 
 	serverAdd := config.Serv
 

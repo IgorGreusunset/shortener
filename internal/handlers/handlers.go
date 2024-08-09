@@ -124,3 +124,46 @@ func PingHandler(db storage.Repository, res http.ResponseWriter, req *http.Reque
 		res.WriteHeader(http.StatusInternalServerError)
 	}
 }
+
+func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Request) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	defer req.Body.Close()
+
+	var requsts []model.APIBatchRequest
+	var urls []model.URL
+	var shorts []model.APIBatchResponse
+
+	err = json.Unmarshal(body, &requsts)
+	if err != nil {
+		http.Error(res, "Failed to unmarshal request body", http.StatusBadRequest)
+		return
+	}
+
+	for _, r := range requsts {
+		sh := helpers.Generate()
+		url := model.NewURL(sh, r.URL)
+		urls = append(urls, *url)
+		w := model.NewAPIBatchResponse(r.ID, config.Base + `/` + sh)
+		shorts = append(shorts, *w)
+	}
+
+	if len(urls) != 0 {
+		if err = db.CreateBatch(urls); err != nil {
+			http.Error(res, "Failed to save urls in db", http.StatusInternalServerError)
+		}
+	}
+
+	response, err := json.Marshal(shorts)
+	if err != nil {
+		http.Error(res, "Failed to marshal response body", http.StatusInternalServerError)
+	}
+
+	res.Header().Set("Content-type", "application/json")
+	res.WriteHeader(http.StatusCreated)
+	res.Write(response)
+}
