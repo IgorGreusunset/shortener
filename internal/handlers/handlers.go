@@ -138,6 +138,8 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 		http.Error(res, "Failed decoding request body", http.StatusBadRequest)
 	}
 
+	logger.Log.Debugln(requests)
+
 	for _, r := range requests {
 		sh := helpers.Generate()
 		url := model.NewURL(sh, r.URL)
@@ -154,14 +156,9 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusCreated)
 
-	dec := json.NewEncoder(res)
-	for _, sh := range shorts {
-		if err := dec.Encode(sh); err != nil {
-			http.Error(res, "Error during encoding response", http.StatusInternalServerError)
-		}
-		res.Write([]byte(","))
+	if err = json.NewEncoder(res).Encode(shorts); err != nil {
+		http.Error(res, "Error during encoding response", http.StatusInternalServerError)
 	}
-
 
 	
 }
