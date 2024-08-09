@@ -159,6 +159,7 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 		if err := dec.Encode(sh); err != nil {
 			http.Error(res, "Error during encoding response", http.StatusInternalServerError)
 		}
+		res.Write([]byte(","))
 	}
 
 
