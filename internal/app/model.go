@@ -27,13 +27,13 @@ func NewAPIPostResponse(result string) *APIPostResponse {
 }
 
 type APIBatchRequest struct {
-	ID string `json:correlation_id`
-	URL string `json:original_url`
+	ID string `json:"correlation_id"`
+	URL string `json:"original_url"`
 }
 
 type APIBatchResponse struct {
-	ID string `json:correlation_id`
-	ShortURL string `json:short_url`
+	ID string `json:"correlation_id"`
+	ShortURL string `json:"short_url"`
 }
 
 func NewAPIBatchResponse(id, shortURL string) *APIBatchResponse {

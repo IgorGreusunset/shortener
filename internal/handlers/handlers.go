@@ -131,17 +131,11 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 		requests []model.APIBatchRequest
 		urls []model.URL
 		shorts []model.APIBatchResponse
-		u model.APIBatchRequest
 	)
 
-	err := json.NewDecoder(req.Body).Decode(&u)
-	for err == nil {
-		requests = append(requests, u)
-		err = json.NewDecoder(req.Body).Decode(&u)
-	}
-
-	if err != io.EOF {
-		http.Error(res, "Failed to read request body", http.StatusBadRequest)
+	err := json.NewDecoder(req.Body).Decode(&requests)
+	if err != nil {
+		http.Error(res, "Failed decoding request body", http.StatusBadRequest)
 	}
 
 	for _, r := range requests {
