@@ -126,25 +126,25 @@ func PingHandler(db storage.Repository, res http.ResponseWriter, req *http.Reque
 }
 
 func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Request) {
-	body, err := io.ReadAll(req.Body)
-	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
-		return
+
+	var (
+		requests []model.APIBatchRequest
+		urls []model.URL
+		shorts []model.APIBatchResponse
+		u model.APIBatchRequest
+	)
+
+	err := json.NewDecoder(req.Body).Decode(&u)
+	for err == nil {
+		requests = append(requests, u)
+		err = json.NewDecoder(req.Body).Decode(&u)
 	}
 
-	defer req.Body.Close()
-
-	var requsts []model.APIBatchRequest
-	var urls []model.URL
-	var shorts []model.APIBatchResponse
-
-	err = json.Unmarshal(body, &requsts)
-	if err != nil {
-		http.Error(res, "Failed to unmarshal request body", http.StatusBadRequest)
-		return
+	if err != io.EOF {
+		http.Error(res, "Failed to read request body", http.StatusBadRequest)
 	}
 
-	for _, r := range requsts {
+	for _, r := range requests {
 		sh := helpers.Generate()
 		url := model.NewURL(sh, r.URL)
 		urls = append(urls, *url)
@@ -158,12 +158,13 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 		}
 	}
 
-	response, err := json.Marshal(shorts)
-	if err != nil {
-		http.Error(res, "Failed to marshal response body", http.StatusInternalServerError)
+	dec := json.NewEncoder(res)
+	for _, sh := range shorts {
+		if err := dec.Encode(sh); err != nil {
+			http.Error(res, "Error during encoding response", http.StatusInternalServerError)
+		}
 	}
 
-	res.Header().Set("Content-type", "application/json")
 	res.WriteHeader(http.StatusCreated)
-	res.Write(response)
+	
 }
