@@ -151,6 +151,8 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 			http.Error(res, "Failed to save urls in db", http.StatusInternalServerError)
 		}
 	}
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusCreated)
 
 	dec := json.NewEncoder(res)
 	for _, sh := range shorts {
@@ -159,6 +161,6 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 		}
 	}
 
-	res.WriteHeader(http.StatusCreated)
+
 	
 }
