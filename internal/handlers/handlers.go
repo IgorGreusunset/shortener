@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -39,7 +40,18 @@ func PostHandler(db storage.Repository, res http.ResponseWriter, req *http.Reque
 	//Создаем новый экземпляр URL структуры и записываем его в хранилище
 	urlToAdd := model.NewURL(id, string(reqBody))
 	if err := db.Create(urlToAdd); err != nil {
-		logger.Log.Debugf(err.Error())
+		var uee *storage.URLExistsError
+		if errors.As(err, &uee) {
+			res.Header().Set("Content-type", "text/plain")
+			res.WriteHeader(http.StatusConflict)
+			resBody := config.Base + `/` + uee.ShortURL
+			if _, err := res.Write([]byte(resBody)); err != nil {
+				log.Printf("Error writing response: %v\n", err)
+				http.Error(res, "Internal server error", http.StatusInternalServerError)
+			}
+			return
+		}
+		logger.Log.Debugln(err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -96,6 +108,21 @@ func APIPostHandler(db storage.Repository, res http.ResponseWriter, req *http.Re
 	//Создаем модель и записываем в storage
 	urlToAdd := model.NewURL(id, urlFromRequest.URL)
 	if err := db.Create(urlToAdd); err != nil {
+		var uee *storage.URLExistsError
+		if errors.As(err, &uee) {
+			res.Header().Set("Content-type", "application/json")
+			res.WriteHeader(http.StatusConflict)
+			result := config.Base + `/` + uee.ShortURL
+			resp := model.NewAPIPostResponse(result)
+			response, err := json.Marshal(resp)
+			if err != nil {
+				logger.Log.Debugln("error", err)
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			res.Write(response)
+			return
+		}
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -137,8 +164,6 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 	if err != nil {
 		http.Error(res, "Failed decoding request body", http.StatusBadRequest)
 	}
-
-	logger.Log.Debugln(requests)
 
 	for _, r := range requests {
 		sh := helpers.Generate()

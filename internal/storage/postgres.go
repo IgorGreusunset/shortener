@@ -3,10 +3,13 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	model "github.com/IgorGreusunset/shortener/internal/app"
 	"github.com/IgorGreusunset/shortener/internal/logger"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -32,6 +35,12 @@ func NewDatabase(dbConfig string) (*DBStorageAdapter, error) {
 		return nil, err
 	}
 
+	_, err = db.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS original_url ON shorten_urls (original_url)")
+	if err != nil {
+		logger.Log.Debugln("Error during index creation: %v", err)
+ 		return nil, err
+	}
+
 	return &DBStorageAdapter{DB: db}, nil
 }
 
@@ -41,8 +50,22 @@ func (db *DBStorageAdapter) Create(record *model.URL) error {
 		return err
 	}
 
-	_, err = tx.Exec(`INSERT INTO shorten_urls(short_url, original_url, created) VALUES ($1, $2, $3);`, record.ID, record.FullURL, time.Now())
+	_, err = tx.Exec(
+		`INSERT INTO shorten_urls(short_url, original_url, created) VALUES ($1, $2, $3);`, 
+		record.ID, 
+		record.FullURL, 
+		time.Now())
+
+
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr){
+			if pgErr.Code == pgerrcode.UniqueViolation{
+				ue := db.NewURLExistsError(record.FullURL, err)
+				return ue
+			}
+		}
+		logger.Log.Debugln(err)
 		tx.Rollback()
 		return err
 	}
@@ -91,4 +114,20 @@ func (db *DBStorageAdapter) CreateBatch(urls []model.URL) error {
 	}
 
 	return tx.Commit()
+}
+
+type URLExistsError struct {
+	ShortURL string
+	Er string
+}
+
+func (db *DBStorageAdapter) NewURLExistsError(originalURL string, e error) *URLExistsError {
+	var ID string
+	row := db.DB.QueryRow(`SELECT short_url FROM shorten_urls WHERE original_url = $1;`, originalURL)
+	row.Scan(&ID)
+	return &URLExistsError{ShortURL: ID, Er: "Original URL already in DB"}
+}
+
+func (uee *URLExistsError) Error() string {
+	return uee.Er
 }
