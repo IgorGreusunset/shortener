@@ -13,11 +13,12 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-type DBStorageAdapter struct {
+//Адаптер для имплементации интерфейса Repository
+type DBRepositoryAdapter struct {
 	DB *sql.DB
 }
 
-func NewDatabase(dbConfig string) (*DBStorageAdapter, error) {
+func NewDatabase(dbConfig string) (*DBRepositoryAdapter, error) {
 	db, err := sql.Open("pgx", dbConfig)
 	if err != nil {
 		return nil, err
@@ -25,6 +26,7 @@ func NewDatabase(dbConfig string) (*DBStorageAdapter, error) {
 
 	ctx := context.Background()
 
+	//Запрос для создания таблицы с ссылками, если она не создана
 	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS shorten_urls (
 		uuid SERIAL PRIMARY KEY,
 		short_url VARCHAR(50),
@@ -35,16 +37,17 @@ func NewDatabase(dbConfig string) (*DBStorageAdapter, error) {
 		return nil, err
 	}
 
+	//Создаем индекс для полной ссылки
 	_, err = db.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS original_url ON shorten_urls (original_url)")
 	if err != nil {
 		logger.Log.Debugln("Error during index creation: %v", err)
  		return nil, err
 	}
 
-	return &DBStorageAdapter{DB: db}, nil
+	return &DBRepositoryAdapter{DB: db}, nil
 }
 
-func (db *DBStorageAdapter) Create(record *model.URL) error {
+func (db *DBRepositoryAdapter) Create(record *model.URL) error {
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
@@ -58,6 +61,8 @@ func (db *DBStorageAdapter) Create(record *model.URL) error {
 
 
 	if err != nil {
+
+		//Проверяем ошибку из БД, если ошибка из-за конфликта индекса - оборачиваем, для передачи существующего ID 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr){
 			if pgErr.Code == pgerrcode.UniqueViolation{
@@ -72,7 +77,7 @@ func (db *DBStorageAdapter) Create(record *model.URL) error {
 	return tx.Commit()
 }
 
-func (db *DBStorageAdapter) GetByID(id string) (model.URL, bool) {
+func (db *DBRepositoryAdapter) GetByID(id string) (model.URL, bool) {
 	var (
 		UUID int
 		ID string
@@ -92,13 +97,11 @@ func (db *DBStorageAdapter) GetByID(id string) (model.URL, bool) {
 	return *result, true
 }
 
-func (db *DBStorageAdapter) Ping() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return db.DB.PingContext(ctx)
+func (db *DBRepositoryAdapter) Ping() error {
+	return db.DB.PingContext(context.Background())
 }
 
-func (db *DBStorageAdapter) CreateBatch(urls []model.URL) error {
+func (db *DBRepositoryAdapter) CreateBatch(urls []model.URL) error {
 	tx, err := db.DB.Begin()
 
 	if err != nil {
@@ -116,12 +119,13 @@ func (db *DBStorageAdapter) CreateBatch(urls []model.URL) error {
 	return tx.Commit()
 }
 
+//Обертка для ошибки при создании записи с существующим original_url. Позволяет передать дальше short_url из базы
 type URLExistsError struct {
 	ShortURL string
 	Er string
 }
 
-func (db *DBStorageAdapter) NewURLExistsError(originalURL string, e error) *URLExistsError {
+func (db *DBRepositoryAdapter) NewURLExistsError(originalURL string, e error) *URLExistsError {
 	var ID string
 	row := db.DB.QueryRow(`SELECT short_url FROM shorten_urls WHERE original_url = $1;`, originalURL)
 	row.Scan(&ID)

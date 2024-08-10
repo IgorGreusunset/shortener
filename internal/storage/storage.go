@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	model "github.com/IgorGreusunset/shortener/internal/app"
+
 )
 
 type Storage struct {
@@ -99,7 +100,6 @@ func saveToFile (url model.URL, file string) error {
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 

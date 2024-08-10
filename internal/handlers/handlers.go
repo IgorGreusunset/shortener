@@ -143,6 +143,7 @@ func APIPostHandler(db storage.Repository, res http.ResponseWriter, req *http.Re
 	res.Write(response)
 }
 
+//Handler для проверки подключения к БД
 func PingHandler(db storage.Repository, res http.ResponseWriter, req *http.Request) {
 	err := db.Ping()
 	if err == nil {
@@ -152,6 +153,7 @@ func PingHandler(db storage.Repository, res http.ResponseWriter, req *http.Reque
 	}
 }
 
+//Handler для добавления списка ссылок
 func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Request) {
 
 	var (
@@ -160,11 +162,13 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 		shorts []model.APIBatchResponse
 	)
 
+	//Десериализуем тело запроса в слайс 
 	err := json.NewDecoder(req.Body).Decode(&requests)
 	if err != nil {
 		http.Error(res, "Failed decoding request body", http.StatusBadRequest)
 	}
 
+	//Проходим по слайсу и для каждого элемента создаем model.URL и подготавливаем модель для ответа
 	for _, r := range requests {
 		sh := helpers.Generate()
 		url := model.NewURL(sh, r.URL)
@@ -173,6 +177,7 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 		shorts = append(shorts, *w)
 	}
 
+	//Сохраняем ссылки в хранилище
 	if len(urls) != 0 {
 		if err = db.CreateBatch(urls); err != nil {
 			http.Error(res, "Failed to save urls in db", http.StatusInternalServerError)
@@ -181,6 +186,7 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusCreated)
 
+	//Сериализируем тело ответа
 	if err = json.NewEncoder(res).Encode(shorts); err != nil {
 		http.Error(res, "Error during encoding response", http.StatusInternalServerError)
 	}
