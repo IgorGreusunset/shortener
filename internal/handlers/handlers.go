@@ -39,7 +39,12 @@ func PostHandler(db storage.Repository, res http.ResponseWriter, req *http.Reque
 
 	//Создаем новый экземпляр URL структуры и записываем его в хранилище
 	urlToAdd := model.NewURL(id, string(reqBody))
-	userID, _ := req.Cookie("userID")
+	userID, err := req.Cookie("userID")
+	logger.Log.Debugln(userID)
+	if err != nil {
+		logger.Log.Debugln(err.Error())
+		http.Error(res, err.Error(), http.StatusBadRequest)
+	}
 	urlToAdd.UserID = userID.Value
 	if err := db.Create(urlToAdd); err != nil {
 		var uee *storage.URLExistsError
@@ -212,6 +217,9 @@ func URLByUserHandler(db storage.Repository, res http.ResponseWriter, req *http.
 	}
 
 	urls, err := db.UsersURLs(userID.Value)
+	if err != nil {
+		http.Error(res, "Error during getting users URLs from db", http.StatusInternalServerError)
+	}
 
 	if len(urls) == 0 {
 		res.WriteHeader(http.StatusNoContent)

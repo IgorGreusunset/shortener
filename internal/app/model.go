@@ -4,7 +4,7 @@ type URL struct {
 	UUID    int    `json:"uuid"`
 	ID      string `json:"short_url"`
 	FullURL string `json:"original_url"`
-	UserID  string
+	UserID  string `json:"user_id"`
 }
 
 // Фабричный метод для создания экземпляра URL структуры

@@ -3,6 +3,7 @@ package storage
 import (
 	"bufio"
 	"encoding/json"
+	"github.com/IgorGreusunset/shortener/internal/logger"
 	"log"
 	"os"
 	"sync"
@@ -42,6 +43,7 @@ func (s *Storage) Create(record *model.URL) error {
 	s.db[record.ID] = *record
 	record.UUID = len(s.db)
 
+	logger.Log.Debugln(record.FullURL, record.ID, record.UserID)
 	if s.file != nil {
 		name := s.file.Name()
 		if err := saveToFile(*record, name); err != nil {
