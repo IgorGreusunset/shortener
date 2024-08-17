@@ -25,8 +25,7 @@ func main() {
 
 	var db storage.Repository
 
-	switch config.DataBase {
-	case "":
+	if config.DataBase == "" {
 		file, err := os.OpenFile(config.File, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			log.Fatalf("Error during opening file with shorten urls: %v", err)
@@ -42,8 +41,7 @@ func main() {
 		file.Close()
 
 		db = database
-
-	default:
+	} else {
 		var err error
 		database, err := storage.NewDatabase(config.DataBase)
 		if err != nil {
@@ -55,44 +53,20 @@ func main() {
 
 	}
 
-	//Обертки для handlers, чтобы использовать их в роутере
-	PostHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		handlers.PostHandler(db, res, req)
-	}
-
-	GetHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		handlers.GetByIDHandler(db, res, req)
-	}
-
-	APIPostHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		handlers.APIPostHandler(db, res, req)
-	}
-
-	PingHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		handlers.PingHandler(db, res, req)
-	}
-
-	BatchHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		handlers.BathcHandler(db, res, req)
-	}
-
-	URLByUserHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		handlers.URLByUserHandler(db, res, req)
-	}
-
 	//Подключаем middlewares
 	router.Use(middleware.WithLogging)
 	router.Use(middleware.GzipMiddleware)
 	router.Use(middleware.WithAuth)
 
-	router.Post(`/`, PostHandlerWrapper)
-	router.Get(`/{id}`, GetHandlerWrapper)
-	router.Post(`/api/shorten`, APIPostHandlerWrapper)
-	router.Get(`/ping`, PingHandlerWrapper)
-	router.Post(`/api/shorten/batch`, BatchHandlerWrapper)
-	router.Get(`/api/user/urls`, URLByUserHandlerWrapper)
+	router.Post(`/`, handlers.PostHandler(db))
+	router.Get(`/{id}`, handlers.GetByIDHandler(db))
+	router.Post(`/api/shorten`, handlers.APIPostHandler(db))
+	router.Get(`/ping`, handlers.PingHandler(db))
+	router.Post(`/api/shorten/batch`, handlers.BathcHandler(db))
 
 	serverAdd := config.Serv
 
 	log.Fatal(http.ListenAndServe(serverAdd, router))
 }
+
+
