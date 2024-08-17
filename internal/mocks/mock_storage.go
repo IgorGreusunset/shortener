@@ -5,6 +5,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	model "github.com/IgorGreusunset/shortener/internal/app"
@@ -35,31 +36,31 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(arg0 *model.URL) error {
+func (m *MockRepository) Create(arg0 context.Context, arg1 *model.URL) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", arg0)
+	ret := m.ctrl.Call(m, "Create", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockRepositoryMockRecorder) Create(arg0 interface{}) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Create(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0, arg1)
 }
 
 // CreateBatch mocks base method.
-func (m *MockRepository) CreateBatch(arg0 []model.URL) error {
+func (m *MockRepository) CreateBatch(arg0 context.Context, arg1 []model.URL) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateBatch", arg0)
+	ret := m.ctrl.Call(m, "CreateBatch", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateBatch indicates an expected call of CreateBatch.
-func (mr *MockRepositoryMockRecorder) CreateBatch(arg0 interface{}) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) CreateBatch(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBatch", reflect.TypeOf((*MockRepository)(nil).CreateBatch), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBatch", reflect.TypeOf((*MockRepository)(nil).CreateBatch), arg0, arg1)
 }
 
 // GetByID mocks base method.

@@ -4,6 +4,10 @@ import (
 	//"bytes"
 	"context"
 	"encoding/json"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"strings"
+
 	//"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,18 +26,10 @@ func TestPostHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	m := mocks.NewMockRepository(ctrl)
-	
-	m.EXPECT().Create(gomock.Any()).Return(nil)
 
+	m.EXPECT().Create(context.Background(), gomock.Any()).Return(nil)
 
-
-	PostHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		PostHandler(m, res, req)
-	}
-
-	handler := http.HandlerFunc(PostHandlerWrapper)
-
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(PostHandler(m))
 
 	defer srv.Close()
 
@@ -101,12 +97,8 @@ func TestGetByIDHandler(t *testing.T) {
 		m.EXPECT().GetByID("g7RETf01").Return(model.URL{ID: "g7RETf01", FullURL: "https://mail.ru/"}, true),
 		m.EXPECT().GetByID("yyokley").Return(model.URL{}, false),
 	)
-	GetHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		GetByIDHandler(m, res, req)
-	}
 
-	handler := http.HandlerFunc(GetHandlerWrapper)
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(GetByIDHandler(m))
 	defer srv.Close()
 
 	tests := []struct {
@@ -147,7 +139,7 @@ func TestGetByIDHandler(t *testing.T) {
 			cntx.URLParams.Add("id", test.requestID)
 
 			w := httptest.NewRecorder()
-			h := http.HandlerFunc(GetHandlerWrapper)
+			h := GetByIDHandler(m)
 			h(w, req)
 
 			res := w.Result()
@@ -171,38 +163,31 @@ func TestAPIPostHandler(t *testing.T) {
 
 	m := mocks.NewMockRepository(ctrl)
 
-	m.EXPECT().Create(gomock.Any()).Return(nil)
+	m.EXPECT().Create(context.Background(), gomock.Any()).Return(nil)
 
-	PostHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		APIPostHandler(m, res, req)
-	}
-
-	handler := http.HandlerFunc(PostHandlerWrapper)
-
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(APIPostHandler(m))
 
 	defer srv.Close()
 
-
 	tests := []struct {
-		name string
-		method string
-		reqBody model.APIPostRequest
-		expectedCode int
+		name            string
+		method          string
+		reqBody         model.APIPostRequest
+		expectedCode    int
 		expectedContent string
 	}{
 		{
-			name: "normal_case",
-			method: http.MethodPost,
-			reqBody: model.APIPostRequest{URL: "https://mail.ru/"},
-			expectedCode: http.StatusCreated,
+			name:            "normal_case",
+			method:          http.MethodPost,
+			reqBody:         model.APIPostRequest{URL: "https://mail.ru/"},
+			expectedCode:    http.StatusCreated,
 			expectedContent: "application/json",
 		},
 		{
-			name: "not_url_case",
-			method: http.MethodPost,
-			reqBody: model.APIPostRequest{URL: "just text not url"},
-			expectedCode: http.StatusBadRequest,
+			name:            "not_url_case",
+			method:          http.MethodPost,
+			reqBody:         model.APIPostRequest{URL: "just text not url"},
+			expectedCode:    http.StatusBadRequest,
 			expectedContent: "",
 		},
 	}
@@ -230,72 +215,58 @@ func TestAPIPostHandler(t *testing.T) {
 	}
 }
 
-//Не смог одалеть написание тестов на этот хэндлер - падают тесты с ошибкой "Error during attemp to read response: http: read on closed response body"
-/*func TestBatchHandler(t *testing.T)  {
+// Не смог одалеть написание тестов на этот хэндлер - падают тесты с ошибкой "Error during attemp to read response: http: read on closed response body"
+func TestBatchHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	m := mocks.NewMockRepository(ctrl)
 	gomock.InOrder(
-		m.EXPECT().Create(gomock.Any()).Return(nil).MaxTimes(2),
-		m.EXPECT().CreateBatch(gomock.Any()).Return(nil).Times(1),
+		m.EXPECT().Create(context.Background(), gomock.Any()).Return(nil).MaxTimes(2),
+		m.EXPECT().CreateBatch(context.Background(), gomock.Any()).Return(nil).Times(1),
 	)
 	body := []model.APIBatchRequest{
 		model.APIBatchRequest{ID: "1", URL: "https://mail.ru/"},
 		model.APIBatchRequest{ID: "2", URL: "https://practicum.yandex.ru/"},
 	}
 
-	BatchHandlerWrapper :=  func (res http.ResponseWriter, req *http.Request){
-		BathcHandler(m, res, req)
-	}
-
-	handler := http.HandlerFunc(BatchHandlerWrapper)
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(BathcHandler(m))
 	defer srv.Close()
 
-	tests := []struct{
-		name string
-		reqBody []model.APIBatchRequest
-		expectedCode int
-		expectedContent string
-		expectedLen int
+	tests := []struct {
+		name             string
+		reqBody          []model.APIBatchRequest
+		expectedCode     int
+		expectedContent  string
+		expectedLen      int
+		expectedResponse []model.APIBatchResponse
 	}{
 		{
-			name: "nornal_case",
-			reqBody: body,
-			expectedCode: http.StatusCreated,
+			name:            "nornal_case",
+			reqBody:         body,
+			expectedCode:    http.StatusCreated,
 			expectedContent: "application/json",
-			expectedLen: 2,
+			expectedResponse: []model.APIBatchResponse{
+				{ID: "1", ShortURL: ""},
+				{ID: "2", ShortURL: ""}},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := resty.New().R()
-			req.Method = http.MethodPost
-			req.URL = srv.URL
+			resp, err := resty.New().R().
+				SetHeader("Content-Type", "application/json").
+				SetBody(tt.reqBody).
+				Post(srv.URL)
+
 			var b strings.Builder
 			if err := json.NewEncoder(&b).Encode(tt.reqBody); err != nil {
 				t.Errorf("Error during encode request body: %v", err)
 			}
 
-			req.Body = io.NopCloser(strings.NewReader(b.String()))
-
-			resp, err := req.Send()
-
 			if err != nil {
 				t.Errorf("Error during http request: %v", err)
 			}
-
-			bodyBytes, err := io.ReadAll(resp.RawResponse.Body)
-			if err != nil {
-				t.Errorf("Error reading response body: %v", err)
-				return	
-			}
-
-			defer resp.RawResponse.Body.Close()
-
-			reader := bytes.NewReader(bodyBytes)
 
 			if resp.StatusCode() != tt.expectedCode {
 				t.Errorf("Response code didn't match expected: got %d want %d", resp.StatusCode(), tt.expectedCode)
@@ -306,12 +277,15 @@ func TestAPIPostHandler(t *testing.T) {
 			}
 
 			var respBody []model.APIBatchResponse
-			if err := json.NewDecoder(reader).Decode(&respBody); err != nil {
+			if err := json.Unmarshal(resp.Body(), &respBody); err != nil {
 				t.Errorf("Error during attemp to read response: %s", err)
-			} else if len(respBody) != tt.expectedLen {
-				t.Errorf("Number of results in response didn't match expected: got %v want %v", len(respBody), tt.expectedLen)
+			}
+
+			opts := cmpopts.IgnoreFields(model.APIBatchResponse{}, "ShortURL")
+			if diff := cmp.Diff(tt.expectedResponse, respBody, opts); diff != "" {
+				t.Errorf("Response body didn't match expected: (-wand +got)\n%s", diff)
 			}
 		})
 	}
 
-}*/
+}

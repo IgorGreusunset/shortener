@@ -13,7 +13,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-//Адаптер для имплементации интерфейса Repository
+// Адаптер для имплементации интерфейса Repository
 type DBRepositoryAdapter struct {
 	DB *sql.DB
 }
@@ -25,62 +25,62 @@ func NewDatabase(dbConfig string) (*DBRepositoryAdapter, error) {
 	}
 
 	ctx := context.Background()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	//Запрос для создания таблицы с ссылками, если она не создана
-	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS shorten_urls (
+	_, err = tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS shorten_urls (
 		uuid SERIAL PRIMARY KEY,
 		short_url VARCHAR(50),
 		original_url TEXT,
 		created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`)
 	if err != nil {
+		tx.Rollback()
 		return nil, err
 	}
 
 	//Создаем индекс для полной ссылки
-	_, err = db.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS original_url ON shorten_urls (original_url)")
+	_, err = tx.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS original_url ON shorten_urls (original_url)")
 	if err != nil {
 		logger.Log.Debugln("Error during index creation: %v", err)
- 		return nil, err
+		tx.Rollback()
+		return nil, err
 	}
 
-	return &DBRepositoryAdapter{DB: db}, nil
+	return &DBRepositoryAdapter{DB: db}, tx.Commit()
 }
 
-func (db *DBRepositoryAdapter) Create(record *model.URL) error {
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
+func (db *DBRepositoryAdapter) Create(ctx context.Context, record *model.URL) error {
 
-	_, err = tx.Exec(
-		`INSERT INTO shorten_urls(short_url, original_url, created) VALUES ($1, $2, $3);`, 
-		record.ID, 
-		record.FullURL, 
+	_, err := db.DB.ExecContext(ctx,
+		`INSERT INTO shorten_urls(short_url, original_url, created) VALUES ($1, $2, $3);`,
+		record.ID,
+		record.FullURL,
 		time.Now())
 
-
 	if err != nil {
 
-		//Проверяем ошибку из БД, если ошибка из-за конфликта индекса - оборачиваем, для передачи существующего ID 
+		//Проверяем ошибку из БД, если ошибка из-за конфликта индекса - оборачиваем, для передачи существующего ID
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr){
-			if pgErr.Code == pgerrcode.UniqueViolation{
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == pgerrcode.UniqueViolation {
 				ue := db.NewURLExistsError(record.FullURL, err)
 				return ue
 			}
 		}
 		logger.Log.Debugln(err)
-		tx.Rollback()
 		return err
 	}
-	return tx.Commit()
+	return nil
 }
 
 func (db *DBRepositoryAdapter) GetByID(id string) (model.URL, bool) {
 	var (
-		UUID int
-		ID string
+		UUID    int
+		ID      string
 		FullURL string
 	)
 
@@ -88,7 +88,7 @@ func (db *DBRepositoryAdapter) GetByID(id string) (model.URL, bool) {
 
 	err := row.Scan(&UUID, &ID, &FullURL)
 	if err != nil {
-		logger.Log.Debugln(err)
+		logger.Log.Errorln(err)
 		return model.URL{}, false
 	}
 
@@ -101,7 +101,7 @@ func (db *DBRepositoryAdapter) Ping() error {
 	return db.DB.PingContext(context.Background())
 }
 
-func (db *DBRepositoryAdapter) CreateBatch(urls []model.URL) error {
+func (db *DBRepositoryAdapter) CreateBatch(ctx context.Context, urls []model.URL) error {
 	tx, err := db.DB.Begin()
 
 	if err != nil {
@@ -109,8 +109,10 @@ func (db *DBRepositoryAdapter) CreateBatch(urls []model.URL) error {
 	}
 
 	for _, u := range urls {
-		_, err = tx.Exec(`INSERT INTO shorten_urls(short_url, original_url, created) VALUES ($1, $2, $3);`, u.ID, u.FullURL, time.Now())
-		if err != nil{
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO shorten_urls(short_url, original_url, created) VALUES ($1, $2, $3);`,
+			u.ID, u.FullURL, time.Now())
+		if err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -119,10 +121,14 @@ func (db *DBRepositoryAdapter) CreateBatch(urls []model.URL) error {
 	return tx.Commit()
 }
 
-//Обертка для ошибки при создании записи с существующим original_url. Позволяет передать дальше short_url из базы
+// Обертка для ошибки при создании записи с существующим original_url. Позволяет передать дальше short_url из базы
 type URLExistsError struct {
 	ShortURL string
-	Er string
+	Er       string
+}
+
+func (uee *URLExistsError) Error() string {
+	return uee.Er
 }
 
 func (db *DBRepositoryAdapter) NewURLExistsError(originalURL string, e error) *URLExistsError {
@@ -130,8 +136,4 @@ func (db *DBRepositoryAdapter) NewURLExistsError(originalURL string, e error) *U
 	row := db.DB.QueryRow(`SELECT short_url FROM shorten_urls WHERE original_url = $1;`, originalURL)
 	row.Scan(&ID)
 	return &URLExistsError{ShortURL: ID, Er: "Original URL already in DB"}
-}
-
-func (uee *URLExistsError) Error() string {
-	return uee.Er
 }
