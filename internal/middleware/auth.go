@@ -21,7 +21,7 @@ func WithAuth(h http.Handler) http.Handler {
 
 		t, err := r.Cookie("Auth")
 		if errors.Is(err, http.ErrNoCookie) {
-			generateSetCookies(w)
+			generateSetCookies(w, r)
 			h.ServeHTTP(w, r)
 			return
 		} else if err != nil {
@@ -30,9 +30,9 @@ func WithAuth(h http.Handler) http.Handler {
 			return
 		}
 
-		id := getUserID(t.Value)
+		id := GetUserID(t.Value)
 		if id == "" {
-			generateSetCookies(w)
+			generateSetCookies(w, r)
 			h.ServeHTTP(w, r)
 			return
 		} else {
@@ -66,7 +66,7 @@ func buildJWTString() (string, string, error) {
 	return tokenString, userID, nil
 }
 
-func getUserID(tokenString string) string {
+func GetUserID(tokenString string) string {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return []byte(SecretKey), nil
@@ -81,7 +81,7 @@ func getUserID(tokenString string) string {
 	return claims.UserID
 }
 
-func generateSetCookies(w http.ResponseWriter) {
+func generateSetCookies(w http.ResponseWriter, req *http.Request) {
 	token, id, err := buildJWTString()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -99,4 +99,5 @@ func generateSetCookies(w http.ResponseWriter) {
 		Path:    "/",
 		Expires: time.Now().Add(TokenExp),
 	})
+	req.Header.Set("Authorization", token)
 }

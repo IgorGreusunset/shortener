@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/IgorGreusunset/shortener/internal/middleware"
 	"github.com/go-chi/chi/v5"
 	"io"
 	"log"
@@ -44,7 +45,10 @@ func PostHandler(db storage.Repository) http.HandlerFunc {
 		//Создаем новый экземпляр URL структуры и записываем его в хранилище
 		urlToAdd := model.NewURL(id, string(reqBody))
 		userID, err := req.Cookie("userID")
-		if err == nil {
+		if err != nil {
+			token := req.Header.Get("Authorization")
+			user = middleware.GetUserID(token)
+		} else {
 			user = userID.Value
 		}
 		urlToAdd.UserID = user
@@ -121,7 +125,10 @@ func APIPostHandler(db storage.Repository) http.HandlerFunc {
 		//Создаем модель и записываем в storage
 		urlToAdd := model.NewURL(id, urlFromRequest.URL)
 		userID, err := req.Cookie("userID")
-		if err == nil {
+		if err != nil {
+			token := req.Header.Get("Authorization")
+			user = middleware.GetUserID(token)
+		} else {
 			user = userID.Value
 		}
 		urlToAdd.UserID = user
@@ -191,7 +198,10 @@ func BathcHandler(db storage.Repository) http.HandlerFunc {
 		}
 		var user string
 		userID, err := req.Cookie("userID")
-		if err == nil {
+		if err != nil {
+			token := req.Header.Get("Authorization")
+			user = middleware.GetUserID(token)
+		} else {
 			user = userID.Value
 		}
 
