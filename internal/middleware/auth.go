@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-const TOKEN_EXP = time.Hour * 24
-const SECRET_KEY = "dmTMd2N9"
+const TokenExp = time.Hour * 24
+const SecretKey = "dmTMd2N9"
 
 type Claims struct {
 	jwt.RegisteredClaims
@@ -40,7 +40,7 @@ func WithAuth(h http.Handler) http.Handler {
 				Name:    "userID",
 				Value:   id,
 				Path:    "/",
-				Expires: time.Now().Add(TOKEN_EXP),
+				Expires: time.Now().Add(TokenExp),
 			})
 		}
 
@@ -54,12 +54,12 @@ func buildJWTString() (string, string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TOKEN_EXP)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TokenExp)),
 		},
 		UserID: userID,
 	})
 
-	tokenString, err := token.SignedString([]byte(SECRET_KEY))
+	tokenString, err := token.SignedString([]byte(SecretKey))
 	if err != nil {
 		return "", "", err
 	}
@@ -69,7 +69,7 @@ func buildJWTString() (string, string, error) {
 func getUserID(tokenString string) string {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		return []byte(SECRET_KEY), nil
+		return []byte(SecretKey), nil
 	})
 	if err != nil {
 		return ""
@@ -90,13 +90,13 @@ func generateSetCookies(w http.ResponseWriter) {
 		Name:     "Auth",
 		Value:    token,
 		Path:     "/",
-		Expires:  time.Now().Add(TOKEN_EXP),
+		Expires:  time.Now().Add(TokenExp),
 		HttpOnly: true,
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name:    "userID",
 		Value:   id,
 		Path:    "/",
-		Expires: time.Now().Add(TOKEN_EXP),
+		Expires: time.Now().Add(TokenExp),
 	})
 }
