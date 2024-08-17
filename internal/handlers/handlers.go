@@ -39,6 +39,8 @@ func PostHandler(db storage.Repository, res http.ResponseWriter, req *http.Reque
 
 	//Создаем новый экземпляр URL структуры и записываем его в хранилище
 	urlToAdd := model.NewURL(id, string(reqBody))
+	userID, _ := req.Cookie("userID")
+	urlToAdd.UserID = userID.Value
 	if err := db.Create(urlToAdd); err != nil {
 		var uee *storage.URLExistsError
 		if errors.As(err, &uee) {
@@ -84,7 +86,7 @@ func GetByIDHandler(db storage.Repository, res http.ResponseWriter, req *http.Re
 	res.WriteHeader(http.StatusTemporaryRedirect)
 }
 
-//Handler для обработки json-запроса на создание новой ссылки
+// Handler для обработки json-запроса на создание новой ссылки
 func APIPostHandler(db storage.Repository, res http.ResponseWriter, req *http.Request) {
 
 	//Получаем данные для создания URL модели из запроса
@@ -107,6 +109,8 @@ func APIPostHandler(db storage.Repository, res http.ResponseWriter, req *http.Re
 
 	//Создаем модель и записываем в storage
 	urlToAdd := model.NewURL(id, urlFromRequest.URL)
+	userID, _ := req.Cookie("userID")
+	urlToAdd.UserID = userID.Value
 	if err := db.Create(urlToAdd); err != nil {
 		var uee *storage.URLExistsError
 		if errors.As(err, &uee) {
@@ -143,7 +147,7 @@ func APIPostHandler(db storage.Repository, res http.ResponseWriter, req *http.Re
 	res.Write(response)
 }
 
-//Handler для проверки подключения к БД
+// Handler для проверки подключения к БД
 func PingHandler(db storage.Repository, res http.ResponseWriter, req *http.Request) {
 	err := db.Ping()
 	if err == nil {
@@ -153,27 +157,30 @@ func PingHandler(db storage.Repository, res http.ResponseWriter, req *http.Reque
 	}
 }
 
-//Handler для добавления списка ссылок
+// Handler для добавления списка ссылок
 func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Request) {
 
 	var (
 		requests []model.APIBatchRequest
-		urls []model.URL
-		shorts []model.APIBatchResponse
+		urls     []model.URL
+		shorts   []model.APIBatchResponse
 	)
 
-	//Десериализуем тело запроса в слайс 
+	//Десериализуем тело запроса в слайс
 	err := json.NewDecoder(req.Body).Decode(&requests)
 	if err != nil {
 		http.Error(res, "Failed decoding request body", http.StatusBadRequest)
 	}
 
+	userID, _ := req.Cookie("userID")
+
 	//Проходим по слайсу и для каждого элемента создаем model.URL и подготавливаем модель для ответа
 	for _, r := range requests {
 		sh := helpers.Generate()
 		url := model.NewURL(sh, r.URL)
+		url.UserID = userID.Value
 		urls = append(urls, *url)
-		w := model.NewAPIBatchResponse(r.ID, config.Base + `/` + sh)
+		w := model.NewAPIBatchResponse(r.ID, config.Base+`/`+sh)
 		shorts = append(shorts, *w)
 	}
 
@@ -191,5 +198,34 @@ func BathcHandler(db storage.Repository, res http.ResponseWriter, req *http.Requ
 		http.Error(res, "Error during encoding response", http.StatusInternalServerError)
 	}
 
-	
+}
+
+func URLByUserHandler(db storage.Repository, res http.ResponseWriter, req *http.Request) {
+	var resBody []model.UsersURLsResponse
+	userID, err := req.Cookie("userID")
+	if errors.Is(err, http.ErrNoCookie) {
+		res.WriteHeader(http.StatusUnauthorized)
+		return
+	} else if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	urls, err := db.UsersURLs(userID.Value)
+
+	if len(urls) == 0 {
+		res.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	for _, u := range urls {
+		r := model.NewUsersURLsResponse(config.Base+`/`+u.ID, u.FullURL)
+		resBody = append(resBody, *r)
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(res).Encode(resBody); err != nil {
+		http.Error(res, "Error during encoding response", http.StatusInternalServerError)
+	}
 }
