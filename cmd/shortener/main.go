@@ -63,10 +63,9 @@ func main() {
 	router.Post(`/api/shorten`, handlers.APIPostHandler(db))
 	router.Get(`/ping`, handlers.PingHandler(db))
 	router.Post(`/api/shorten/batch`, handlers.BathcHandler(db))
+	router.Get(`/api/user/urls`, handlers.URLByUserHandler(db))
 
 	serverAdd := config.Serv
 
 	log.Fatal(http.ListenAndServe(serverAdd, router))
 }
-
-
