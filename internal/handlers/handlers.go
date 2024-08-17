@@ -39,12 +39,15 @@ func PostHandler(db storage.Repository) http.HandlerFunc {
 
 		//Генерируем ID для короткой ссылки
 		id := helpers.Generate()
+		var user string
 
 		//Создаем новый экземпляр URL структуры и записываем его в хранилище
 		urlToAdd := model.NewURL(id, string(reqBody))
-		userID, _ := req.Cookie("userID")
-		logger.Log.Debugln(userID)
-		urlToAdd.UserID = userID.Value
+		userID, err := req.Cookie("userID")
+		if err == nil {
+			user = userID.Value
+		}
+		urlToAdd.UserID = user
 		ctx := context.Background()
 		if err := db.Create(ctx, urlToAdd); err != nil {
 			var uee *storage.URLExistsError
@@ -113,11 +116,15 @@ func APIPostHandler(db storage.Repository) http.HandlerFunc {
 		}
 
 		id := helpers.Generate()
+		var user string
 
 		//Создаем модель и записываем в storage
 		urlToAdd := model.NewURL(id, urlFromRequest.URL)
-		userID, _ := req.Cookie("userID")
-		urlToAdd.UserID = userID.Value
+		userID, err := req.Cookie("userID")
+		if err == nil {
+			user = userID.Value
+		}
+		urlToAdd.UserID = user
 		ctx := context.Background()
 		if err := db.Create(ctx, urlToAdd); err != nil {
 			var uee *storage.URLExistsError
@@ -182,14 +189,17 @@ func BathcHandler(db storage.Repository) http.HandlerFunc {
 		if err != nil {
 			http.Error(res, "Failed decoding request body", http.StatusBadRequest)
 		}
-
-		userID, _ := req.Cookie("userID")
+		var user string
+		userID, err := req.Cookie("userID")
+		if err == nil {
+			user = userID.Value
+		}
 
 		//Проходим по слайсу и для каждого элемента создаем model.URL и подготавливаем модель для ответа
 		for _, r := range requests {
 			sh := helpers.Generate()
 			url := model.NewURL(sh, r.URL)
-			url.UserID = userID.Value
+			url.UserID = user
 			urls = append(urls, *url)
 			w := model.NewAPIBatchResponse(r.ID, config.Base+`/`+sh)
 			shorts = append(shorts, *w)
