@@ -28,7 +28,7 @@ func PostHandler(db storage.Repository) http.HandlerFunc {
 
 		defer req.Body.Close()
 
-		logger.Log.Debugln(string(reqBody))
+		//logger.Log.Debugln(string(reqBody))
 
 		//Проверяем, что в теле запроса корректный URL-адрес
 		_, err = url.ParseRequestURI(string(reqBody))
