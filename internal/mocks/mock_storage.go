@@ -90,3 +90,18 @@ func (mr *MockRepositoryMockRecorder) Ping() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockRepository)(nil).Ping))
 }
+
+// UsersURLs mocks base method.
+func (m *MockRepository) UsersURLs(arg0 string) ([]model.URL, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UsersURLs", arg0)
+	ret0, _ := ret[0].([]model.URL)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UsersURLs indicates an expected call of UsersURLs.
+func (mr *MockRepositoryMockRecorder) UsersURLs(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UsersURLs", reflect.TypeOf((*MockRepository)(nil).UsersURLs), arg0)
+}
