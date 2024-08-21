@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"log"
 	"os"
@@ -11,14 +12,13 @@ import (
 )
 
 type Storage struct {
-	db map[string]model.URL
+	db   map[string]model.URL
 	file *os.File
-	mu sync.RWMutex
-	w *bufio.Writer
+	mu   sync.RWMutex
 	scan *bufio.Scanner
 }
 
-//Фабричный метод создания нового экземпляра хранилища
+// Фабричный метод создания нового экземпляра хранилища
 func NewStorage(db map[string]model.URL) *Storage {
 	return &Storage{db: db}
 }
@@ -28,12 +28,14 @@ func (s *Storage) SetFile(f *os.File) {
 }
 
 type Repository interface {
-	Create(record *model.URL)
+	Create(ctx context.Context, record *model.URL) error
 	GetByID(id string) (model.URL, bool)
+	Ping() error
+	CreateBatch(ctx context.Context, urls []model.URL) error
 }
 
-//Метод для создания новой записи в хранилище
-func (s *Storage) Create(record *model.URL) {
+// Метод для создания новой записи в хранилище
+func (s *Storage) Create(ctx context.Context, record *model.URL) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -44,15 +46,14 @@ func (s *Storage) Create(record *model.URL) {
 		name := s.file.Name()
 		if err := saveToFile(*record, name); err != nil {
 			log.Printf("Error write to file: %v", err)
-			return
+			return err
 		}
 	}
+	return nil
 }
 
-
-
-//Метода для получения записи из хранилища
-func (s *Storage) GetByID(id string)(model.URL, bool) {
+// Метода для получения записи из хранилища
+func (s *Storage) GetByID(id string) (model.URL, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -60,14 +61,16 @@ func (s *Storage) GetByID(id string)(model.URL, bool) {
 	return url, ok
 }
 
+func (s *Storage) Ping() error {
+	return nil
+}
 
 func (s *Storage) FillFromFile(file *os.File) error {
 	url := &model.URL{}
 	s.scan = bufio.NewScanner(file)
 
-
 	for s.scan.Scan() {
-		err := json.Unmarshal(s.scan.Bytes(), url) 
+		err := json.Unmarshal(s.scan.Bytes(), url)
 		if err != nil {
 			return err
 		}
@@ -77,7 +80,7 @@ func (s *Storage) FillFromFile(file *os.File) error {
 	return nil
 }
 
-func saveToFile (url model.URL, file string) error {
+func saveToFile(url model.URL, file string) error {
 	fil, err := os.OpenFile(file, os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		return err
@@ -93,6 +96,14 @@ func saveToFile (url model.URL, file string) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
 
+func (s *Storage) CreateBatch(ctx context.Context, urls []model.URL) error {
+	for _, u := range urls {
+		if err := s.Create(ctx, &u); err != nil {
+			return err
+		}
+	}
 	return nil
 }

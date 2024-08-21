@@ -1,31 +1,35 @@
 package handlers
 
 import (
+	//"bytes"
 	"context"
 	"encoding/json"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"strings"
+
+	//"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	//"strings"
 	"testing"
 
 	model "github.com/IgorGreusunset/shortener/internal/app"
-	"github.com/IgorGreusunset/shortener/internal/storage"
+	"github.com/IgorGreusunset/shortener/internal/mocks"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-resty/resty/v2"
+	"github.com/golang/mock/gomock"
 )
 
 func TestPostHandler(t *testing.T) {
-	db := storage.NewStorage(map[string]model.URL{})
-	file, _ := os.CreateTemp("", "*")
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
+	m := mocks.NewMockRepository(ctrl)
 
-	PostHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		PostHandler(db, file.Name(), res, req)
-	}
+	m.EXPECT().Create(context.Background(), gomock.Any()).Return(nil)
 
-	handler := http.HandlerFunc(PostHandlerWrapper)
-
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(PostHandler(m))
 
 	defer srv.Close()
 
@@ -83,17 +87,18 @@ func TestPostHandler(t *testing.T) {
 }
 
 func TestGetByIDHandler(t *testing.T) {
-	db := storage.NewStorage(map[string]model.URL{
-		"U8rtGB25": model.URL{ID: "U8rtGB25", FullURL: "https://practicum.yandex.ru/"},
-		"g7RETf01": model.URL{ID: "g7RETf01", FullURL: "https://mail.ru/"},
-	})
 
-	GetHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		GetByIDHandler(db, res, req)
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	handler := http.HandlerFunc(GetHandlerWrapper)
-	srv := httptest.NewServer(handler)
+	m := mocks.NewMockRepository(ctrl)
+	gomock.InOrder(
+		m.EXPECT().GetByID("U8rtGB25").Return(model.URL{ID: "U8rtGB25", FullURL: "https://practicum.yandex.ru/"}, true),
+		m.EXPECT().GetByID("g7RETf01").Return(model.URL{ID: "g7RETf01", FullURL: "https://mail.ru/"}, true),
+		m.EXPECT().GetByID("yyokley").Return(model.URL{}, false),
+	)
+
+	srv := httptest.NewServer(GetByIDHandler(m))
 	defer srv.Close()
 
 	tests := []struct {
@@ -123,12 +128,6 @@ func TestGetByIDHandler(t *testing.T) {
 			requestID:    "yyokley",
 			expectedCode: http.StatusBadRequest,
 		},
-		{
-			name:         "not_get_method",
-			method:       http.MethodPatch,
-			requestID:    "yoyoyo",
-			expectedCode: http.StatusBadRequest,
-		},
 	}
 
 	for _, test := range tests {
@@ -140,7 +139,7 @@ func TestGetByIDHandler(t *testing.T) {
 			cntx.URLParams.Add("id", test.requestID)
 
 			w := httptest.NewRecorder()
-			h := http.HandlerFunc(GetHandlerWrapper)
+			h := GetByIDHandler(m)
 			h(w, req)
 
 			res := w.Result()
@@ -159,39 +158,36 @@ func TestGetByIDHandler(t *testing.T) {
 }
 
 func TestAPIPostHandler(t *testing.T) {
-	db := storage.NewStorage(map[string]model.URL{})
-	file := "./short_url.json"
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	PostHandlerWrapper := func(res http.ResponseWriter, req *http.Request) {
-		APIPostHandler(db, file, res, req)
-	}
+	m := mocks.NewMockRepository(ctrl)
 
-	handler := http.HandlerFunc(PostHandlerWrapper)
+	m.EXPECT().Create(context.Background(), gomock.Any()).Return(nil)
 
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(APIPostHandler(m))
 
 	defer srv.Close()
 
-
 	tests := []struct {
-		name string
-		method string
-		reqBody model.APIPostRequest
-		expectedCode int
+		name            string
+		method          string
+		reqBody         model.APIPostRequest
+		expectedCode    int
 		expectedContent string
 	}{
 		{
-			name: "normal_case",
-			method: http.MethodPost,
-			reqBody: model.APIPostRequest{URL: "https://mail.ru/"},
-			expectedCode: http.StatusCreated,
+			name:            "normal_case",
+			method:          http.MethodPost,
+			reqBody:         model.APIPostRequest{URL: "https://mail.ru/"},
+			expectedCode:    http.StatusCreated,
 			expectedContent: "application/json",
 		},
 		{
-			name: "not_url_case",
-			method: http.MethodPost,
-			reqBody: model.APIPostRequest{URL: "just text not url"},
-			expectedCode: http.StatusBadRequest,
+			name:            "not_url_case",
+			method:          http.MethodPost,
+			reqBody:         model.APIPostRequest{URL: "just text not url"},
+			expectedCode:    http.StatusBadRequest,
 			expectedContent: "",
 		},
 	}
@@ -217,4 +213,79 @@ func TestAPIPostHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Не смог одалеть написание тестов на этот хэндлер - падают тесты с ошибкой "Error during attemp to read response: http: read on closed response body"
+func TestBatchHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	m := mocks.NewMockRepository(ctrl)
+	gomock.InOrder(
+		m.EXPECT().Create(context.Background(), gomock.Any()).Return(nil).MaxTimes(2),
+		m.EXPECT().CreateBatch(context.Background(), gomock.Any()).Return(nil).Times(1),
+	)
+	body := []model.APIBatchRequest{
+		model.APIBatchRequest{ID: "1", URL: "https://mail.ru/"},
+		model.APIBatchRequest{ID: "2", URL: "https://practicum.yandex.ru/"},
+	}
+
+	srv := httptest.NewServer(BathcHandler(m))
+	defer srv.Close()
+
+	tests := []struct {
+		name             string
+		reqBody          []model.APIBatchRequest
+		expectedCode     int
+		expectedContent  string
+		expectedLen      int
+		expectedResponse []model.APIBatchResponse
+	}{
+		{
+			name:            "nornal_case",
+			reqBody:         body,
+			expectedCode:    http.StatusCreated,
+			expectedContent: "application/json",
+			expectedResponse: []model.APIBatchResponse{
+				{ID: "1", ShortURL: ""},
+				{ID: "2", ShortURL: ""}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := resty.New().R().
+				SetHeader("Content-Type", "application/json").
+				SetBody(tt.reqBody).
+				Post(srv.URL)
+
+			var b strings.Builder
+			if err := json.NewEncoder(&b).Encode(tt.reqBody); err != nil {
+				t.Errorf("Error during encode request body: %v", err)
+			}
+
+			if err != nil {
+				t.Errorf("Error during http request: %v", err)
+			}
+
+			if resp.StatusCode() != tt.expectedCode {
+				t.Errorf("Response code didn't match expected: got %d want %d", resp.StatusCode(), tt.expectedCode)
+			}
+
+			if resp.Header().Get("Content-Type") != tt.expectedContent {
+				t.Errorf("Response content-type didn't match expected: got %v want %v", resp.Header().Get("Content-Type"), tt.expectedContent)
+			}
+
+			var respBody []model.APIBatchResponse
+			if err := json.Unmarshal(resp.Body(), &respBody); err != nil {
+				t.Errorf("Error during attemp to read response: %s", err)
+			}
+
+			opts := cmpopts.IgnoreFields(model.APIBatchResponse{}, "ShortURL")
+			if diff := cmp.Diff(tt.expectedResponse, respBody, opts); diff != "" {
+				t.Errorf("Response body didn't match expected: (-wand +got)\n%s", diff)
+			}
+		})
+	}
+
 }

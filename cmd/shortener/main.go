@@ -12,8 +12,8 @@ import (
 	"github.com/IgorGreusunset/shortener/internal/middleware"
 	"github.com/IgorGreusunset/shortener/internal/storage"
 	"github.com/go-chi/chi/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
-
 
 func main() {
 
@@ -23,51 +23,47 @@ func main() {
 
 	logger.Initialize()
 
+	var db storage.Repository
 
-	//Открываем файл-хранилище
-	file, err := os.OpenFile(config.File, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("Error during opening file with shorten urls: %v", err)
-	}
+	if config.DataBase == "" {
+		file, err := os.OpenFile(config.File, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("Error during opening file with shorten urls: %v", err)
+		}
+		database := storage.NewStorage(map[string]model.URL{})
+		database.SetFile(file)
 
-	//Создаем новое хранилище
-	db := storage.NewStorage(map[string]model.URL{})
-	db.SetFile(file)
+		//Наполняем хранилище данными из файла
+		err = database.FillFromFile(file)
+		if err != nil {
+			logger.Log.Infof("Error during reading from file with shorten urls: %v", err)
+		}
+		file.Close()
 
-	//Наполняем хранилище данными из файла
-	err = db.FillFromFile(file)
-	if err != nil {
-		logger.Log.Infof("Error during reading from file with shorten urls: %v", err)
-	}
+		db = database
+	} else {
+		var err error
+		database, err := storage.NewDatabase(config.DataBase)
+		if err != nil {
+			log.Fatalf("Error during database connection: %v", err)
+		}
+		defer database.DB.Close()
 
+		db = database
 
-	file.Close()
-	
-
-	//Обертки для handlers, чтобы использовать их в роутере
-	PostHandlerWrapper := func (res http.ResponseWriter, req *http.Request)  {
-		handlers.PostHandler(db, config.File, res, req)
-	}
-
-	GetHandlerWrapper := func (res http.ResponseWriter, req *http.Request)  {
-		handlers.GetByIDHandler(db, res, req)
-	}
-
-	APIPostHandlerWrapper := func (res http.ResponseWriter, req *http.Request)  {
-		handlers.APIPostHandler(db, config.File, res, req)
 	}
 
 	//Подключаем middlewares
 	router.Use(middleware.WithLogging)
 	router.Use(middleware.GzipMiddleware)
 
-	router.Post(`/`, PostHandlerWrapper)
-	router.Get(`/{id}`, GetHandlerWrapper)
-	router.Post(`/api/shorten`, APIPostHandlerWrapper)
+	router.Post(`/`, handlers.PostHandler(db))
+	router.Get(`/{id}`, handlers.GetByIDHandler(db))
+	router.Post(`/api/shorten`, handlers.APIPostHandler(db))
+	router.Get(`/ping`, handlers.PingHandler(db))
+	router.Post(`/api/shorten/batch`, handlers.BathcHandler(db))
 
 	serverAdd := config.Serv
 
 	log.Fatal(http.ListenAndServe(serverAdd, router))
 }
-
-
