@@ -66,6 +66,7 @@ func buildJWTString() (string, string, error) {
 	return tokenString, userID, nil
 }
 
+//Проверяем токен и получаем пользователя
 func GetUserID(tokenString string) string {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
