@@ -1,9 +1,10 @@
 package model
 
 type URL struct {
-	UUID int `json:"uuid"`
+	UUID    int    `json:"uuid"`
 	ID      string `json:"short_url"`
-	FullURL string	`json:"original_url"`
+	FullURL string `json:"original_url"`
+	UserID  string `json:"user_id"`
 }
 
 // Фабричный метод для создания экземпляра URL структуры
@@ -27,15 +28,24 @@ func NewAPIPostResponse(result string) *APIPostResponse {
 }
 
 type APIBatchRequest struct {
-	ID string `json:"correlation_id"`
+	ID  string `json:"correlation_id"`
 	URL string `json:"original_url"`
 }
 
 type APIBatchResponse struct {
-	ID string `json:"correlation_id"`
+	ID       string `json:"correlation_id"`
 	ShortURL string `json:"short_url"`
 }
 
 func NewAPIBatchResponse(id, shortURL string) *APIBatchResponse {
 	return &APIBatchResponse{ID: id, ShortURL: shortURL}
+}
+
+type UsersURLsResponse struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
+}
+
+func NewUsersURLsResponse(shortURL, originalURL string) *UsersURLsResponse {
+	return &UsersURLsResponse{ShortURL: shortURL, OriginalURL: originalURL}
 }

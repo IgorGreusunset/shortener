@@ -63,7 +63,7 @@ func TestPostHandler(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.method, func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			req := resty.New().R()
 			req.Method = test.method
 			req.URL = srv.URL

@@ -32,6 +32,7 @@ type Repository interface {
 	GetByID(id string) (model.URL, bool)
 	Ping() error
 	CreateBatch(ctx context.Context, urls []model.URL) error
+	UsersURLs(userID string) ([]model.URL, error)
 }
 
 // Метод для создания новой записи в хранилище
@@ -106,4 +107,16 @@ func (s *Storage) CreateBatch(ctx context.Context, urls []model.URL) error {
 		}
 	}
 	return nil
+}
+
+func (s *Storage) UsersURLs(userID string) ([]model.URL, error) {
+	result := make([]model.URL, 0)
+	s.mu.RLock()
+	for _, u := range s.db {
+		if u.UserID == userID {
+			result = append(result, u)
+		}
+	}
+	s.mu.RUnlock()
+	return result, nil
 }

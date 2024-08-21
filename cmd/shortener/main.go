@@ -56,12 +56,14 @@ func main() {
 	//Подключаем middlewares
 	router.Use(middleware.WithLogging)
 	router.Use(middleware.GzipMiddleware)
+	router.Use(middleware.WithAuth)
 
 	router.Post(`/`, handlers.PostHandler(db))
 	router.Get(`/{id}`, handlers.GetByIDHandler(db))
 	router.Post(`/api/shorten`, handlers.APIPostHandler(db))
 	router.Get(`/ping`, handlers.PingHandler(db))
 	router.Post(`/api/shorten/batch`, handlers.BathcHandler(db))
+	router.Get(`/api/user/urls`, handlers.URLByUserHandler(db))
 
 	serverAdd := config.Serv
 

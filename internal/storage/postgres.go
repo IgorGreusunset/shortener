@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	model "github.com/IgorGreusunset/shortener/internal/app"
@@ -35,6 +36,7 @@ func NewDatabase(dbConfig string) (*DBRepositoryAdapter, error) {
 		uuid SERIAL PRIMARY KEY,
 		short_url VARCHAR(50),
 		original_url TEXT,
+    	user_id VARCHAR(36),
 		created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`)
 	if err != nil {
@@ -56,9 +58,10 @@ func NewDatabase(dbConfig string) (*DBRepositoryAdapter, error) {
 func (db *DBRepositoryAdapter) Create(ctx context.Context, record *model.URL) error {
 
 	_, err := db.DB.ExecContext(ctx,
-		`INSERT INTO shorten_urls(short_url, original_url, created) VALUES ($1, $2, $3);`,
+		`INSERT INTO shorten_urls(short_url, original_url, user_id, created) VALUES ($1, $2, $3, $4);`,
 		record.ID,
 		record.FullURL,
+		record.UserID,
 		time.Now())
 
 	if err != nil {
@@ -82,11 +85,12 @@ func (db *DBRepositoryAdapter) GetByID(id string) (model.URL, bool) {
 		UUID    int
 		ID      string
 		FullURL string
+		UserID  string
 	)
 
-	row := db.DB.QueryRow(`SELECT uuid, short_url, original_url FROM shorten_urls WHERE short_url = $1;`, id)
+	row := db.DB.QueryRow(`SELECT uuid, short_url, original_url, user_id FROM shorten_urls WHERE short_url = $1;`, id)
 
-	err := row.Scan(&UUID, &ID, &FullURL)
+	err := row.Scan(&UUID, &ID, &FullURL, &UserID)
 	if err != nil {
 		logger.Log.Errorln(err)
 		return model.URL{}, false
@@ -94,6 +98,7 @@ func (db *DBRepositoryAdapter) GetByID(id string) (model.URL, bool) {
 
 	result := model.NewURL(ID, FullURL)
 	result.UUID = UUID
+	result.UserID = UserID
 	return *result, true
 }
 
@@ -110,8 +115,8 @@ func (db *DBRepositoryAdapter) CreateBatch(ctx context.Context, urls []model.URL
 
 	for _, u := range urls {
 		_, err = tx.ExecContext(ctx,
-			`INSERT INTO shorten_urls(short_url, original_url, created) VALUES ($1, $2, $3);`,
-			u.ID, u.FullURL, time.Now())
+			`INSERT INTO shorten_urls(short_url, original_url, user_id, created) VALUES ($1, $2, $3, $4);`,
+			u.ID, u.FullURL, u.UserID, time.Now())
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -136,4 +141,29 @@ func (db *DBRepositoryAdapter) NewURLExistsError(originalURL string, e error) *U
 	row := db.DB.QueryRow(`SELECT short_url FROM shorten_urls WHERE original_url = $1;`, originalURL)
 	row.Scan(&ID)
 	return &URLExistsError{ShortURL: ID, Er: "Original URL already in DB"}
+}
+
+func (db *DBRepositoryAdapter) UsersURLs(userID string) ([]model.URL, error) {
+	result := make([]model.URL, 0)
+	rows, err := db.DB.QueryContext(context.Background(),
+		`SELECT short_url, original_url, user_id FROM shorten_urls WHERE user_id = $1;`,
+		userID)
+	if err != nil {
+		return nil, fmt.Errorf("error querying shorten URLs by user_id: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var u model.URL
+		err := rows.Scan(&u.ID, &u.FullURL, &u.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning row: %v", err)
+		}
+		result = append(result, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error scanning rows: %v", err)
+	}
+	return result, nil
 }
