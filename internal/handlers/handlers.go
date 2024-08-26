@@ -4,18 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/IgorGreusunset/shortener/cmd/config"
+	model "github.com/IgorGreusunset/shortener/internal/app"
+	"github.com/IgorGreusunset/shortener/internal/helpers"
+	"github.com/IgorGreusunset/shortener/internal/logger"
 	"github.com/IgorGreusunset/shortener/internal/middleware"
+	"github.com/IgorGreusunset/shortener/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-
-	"github.com/IgorGreusunset/shortener/cmd/config"
-	model "github.com/IgorGreusunset/shortener/internal/app"
-	"github.com/IgorGreusunset/shortener/internal/helpers"
-	"github.com/IgorGreusunset/shortener/internal/logger"
-	"github.com/IgorGreusunset/shortener/internal/storage"
 )
 
 // Handler для обработки Post-запроса на запись новой URL структуры в хранилище
@@ -91,6 +90,11 @@ func GetByIDHandler(db storage.Repository) http.HandlerFunc {
 
 		if !ok {
 			res.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if fullURL.DeletedFlag {
+			res.WriteHeader(http.StatusGone)
 			return
 		}
 
@@ -267,4 +271,79 @@ func URLByUserHandler(db storage.Repository) http.HandlerFunc {
 			http.Error(res, "Error during encoding response", http.StatusInternalServerError)
 		}
 	}
+}
+
+func DeleteBatchURLsHandler(db storage.Repository) http.HandlerFunc {
+	return func(res http.ResponseWriter, req *http.Request) {
+		var shorts []string
+		err := json.NewDecoder(req.Body).Decode(&shorts)
+		if err != nil {
+			http.Error(res, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		userID, err := req.Cookie("userID")
+		if errors.Is(err, http.ErrNoCookie) {
+			res.WriteHeader(http.StatusUnauthorized)
+			return
+		} else if err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		inputCh := generatorDelete(shorts)
+
+		urlsCh := getURLs(inputCh, db)
+
+		finalCh := permissionToDel(urlsCh, userID.Value)
+
+		go func() {
+			for {
+				id, ok := <-finalCh
+				if !ok {
+					break
+				}
+				db.Delete(context.Background(), id)
+			}
+		}()
+
+		res.WriteHeader(http.StatusAccepted)
+	}
+}
+
+func generatorDelete(shorts []string) chan string {
+	resChan := make(chan string)
+	go func() {
+		defer close(resChan)
+		for _, short := range shorts {
+			resChan <- short
+		}
+	}()
+
+	return resChan
+}
+
+func getURLs(inputCh chan string, db storage.Repository) chan model.URL {
+	resChan := make(chan model.URL)
+	go func() {
+		defer close(resChan)
+		for input := range inputCh {
+			u, _ := db.GetByID(input)
+			resChan <- u
+		}
+	}()
+	return resChan
+}
+
+func permissionToDel(inputCh chan model.URL, user string) chan string {
+	resChan := make(chan string)
+	go func() {
+		defer close(resChan)
+		for input := range inputCh {
+			if input.UserID == user {
+				resChan <- input.ID
+			}
+		}
+	}()
+	return resChan
 }

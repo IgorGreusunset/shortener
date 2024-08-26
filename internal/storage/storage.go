@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"os"
 	"sync"
@@ -33,6 +34,7 @@ type Repository interface {
 	Ping() error
 	CreateBatch(ctx context.Context, urls []model.URL) error
 	UsersURLs(userID string) ([]model.URL, error)
+	Delete(ctx context.Context, shorts string) error
 }
 
 // Метод для создания новой записи в хранилище
@@ -119,4 +121,17 @@ func (s *Storage) UsersURLs(userID string) ([]model.URL, error) {
 	}
 	s.mu.RUnlock()
 	return result, nil
+}
+
+func (s *Storage) Delete(ctx context.Context, shorts string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u, ok := s.db[shorts]
+	if !ok {
+		return errors.New("not found")
+	}
+	u.DeletedFlag = true
+	s.db[shorts] = u
+
+	return nil
 }

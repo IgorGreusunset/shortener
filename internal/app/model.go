@@ -1,10 +1,11 @@
 package model
 
 type URL struct {
-	UUID    int    `json:"uuid"`
-	ID      string `json:"short_url"`
-	FullURL string `json:"original_url"`
-	UserID  string `json:"user_id"`
+	UUID        int    `json:"uuid"`
+	ID          string `json:"short_url"`
+	FullURL     string `json:"original_url"`
+	UserID      string `json:"user_id"`
+	DeletedFlag bool   `json:"is_deleted"`
 }
 
 // Фабричный метод для создания экземпляра URL структуры

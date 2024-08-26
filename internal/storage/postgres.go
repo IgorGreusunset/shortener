@@ -37,7 +37,8 @@ func NewDatabase(dbConfig string) (*DBRepositoryAdapter, error) {
 		short_url VARCHAR(50),
 		original_url TEXT,
     	user_id VARCHAR(36),
-		created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    	is_deleted BOOLEAN DEFAULT 'NO'
 	)`)
 	if err != nil {
 		tx.Rollback()
@@ -146,7 +147,7 @@ func (db *DBRepositoryAdapter) NewURLExistsError(originalURL string, e error) *U
 func (db *DBRepositoryAdapter) UsersURLs(userID string) ([]model.URL, error) {
 	result := make([]model.URL, 0)
 	rows, err := db.DB.QueryContext(context.Background(),
-		`SELECT short_url, original_url, user_id FROM shorten_urls WHERE user_id = $1;`,
+		`SELECT short_url, original_url, user_id FROM shorten_urls WHERE user_id = $1 AND is_deleted = FALSE;`,
 		userID)
 	if err != nil {
 		return nil, fmt.Errorf("error querying shorten URLs by user_id: %v", err)
@@ -166,4 +167,13 @@ func (db *DBRepositoryAdapter) UsersURLs(userID string) ([]model.URL, error) {
 		return nil, fmt.Errorf("error scanning rows: %v", err)
 	}
 	return result, nil
+}
+
+func (db *DBRepositoryAdapter) Delete(ctx context.Context, shorts string) error {
+	_, err := db.DB.ExecContext(ctx,
+		`UPDATE shorten_urls SET is_deleted TRUE WHERE short_url = $1;`, shorts)
+	if err != nil {
+		return fmt.Errorf("error deleting shorten URLs: %v", err)
+	}
+	return nil
 }
