@@ -83,15 +83,16 @@ func (db *DBRepositoryAdapter) Create(ctx context.Context, record *model.URL) er
 
 func (db *DBRepositoryAdapter) GetByID(id string) (model.URL, bool) {
 	var (
-		UUID    int
-		ID      string
-		FullURL string
-		UserID  string
+		UUID        int
+		ID          string
+		FullURL     string
+		UserID      string
+		DeletedFlag bool
 	)
 
-	row := db.DB.QueryRow(`SELECT uuid, short_url, original_url, user_id FROM shorten_urls WHERE short_url = $1;`, id)
+	row := db.DB.QueryRow(`SELECT uuid, short_url, original_url, user_id, is_deleted FROM shorten_urls WHERE short_url = $1;`, id)
 
-	err := row.Scan(&UUID, &ID, &FullURL, &UserID)
+	err := row.Scan(&UUID, &ID, &FullURL, &UserID, &DeletedFlag)
 	if err != nil {
 		logger.Log.Errorln(err)
 		return model.URL{}, false
@@ -100,6 +101,7 @@ func (db *DBRepositoryAdapter) GetByID(id string) (model.URL, bool) {
 	result := model.NewURL(ID, FullURL)
 	result.UUID = UUID
 	result.UserID = UserID
+	result.DeletedFlag = DeletedFlag
 	return *result, true
 }
 
