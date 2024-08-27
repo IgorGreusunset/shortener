@@ -64,7 +64,7 @@ func main() {
 	router.Get(`/ping`, handlers.PingHandler(db))
 	router.Post(`/api/shorten/batch`, handlers.BathcHandler(db))
 	router.Get(`/api/user/urls`, handlers.URLByUserHandler(db))
-	router.Delete(`/api/user/urls`, handlers.URLByUserHandler(db))
+	router.Delete(`/api/user/urls`, handlers.DeleteBatchURLsHandler(db))
 
 	serverAdd := config.Serv
 
