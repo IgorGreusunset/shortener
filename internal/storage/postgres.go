@@ -176,5 +176,6 @@ func (db *DBRepositoryAdapter) Delete(ctx context.Context, short string) error {
 		logger.Log.Errorln("error during delete query:", err)
 		return fmt.Errorf("error deleting shorten URLs: %v", err)
 	}
+	logger.Log.Debugln("Deleted shorten URLs:", short)
 	return nil
 }
