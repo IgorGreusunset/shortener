@@ -34,7 +34,7 @@ type Repository interface {
 	Ping() error
 	CreateBatch(ctx context.Context, urls []model.URL) error
 	UsersURLs(userID string) ([]model.URL, error)
-	Delete(ctx context.Context, shorts string) error
+	Delete(ctx context.Context, shorts []string, userID string) error
 }
 
 // Метод для создания новой записи в хранилище
@@ -123,15 +123,18 @@ func (s *Storage) UsersURLs(userID string) ([]model.URL, error) {
 	return result, nil
 }
 
-func (s *Storage) Delete(ctx context.Context, shorts string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	u, ok := s.db[shorts]
-	if !ok {
-		return errors.New("not found")
+func (s *Storage) Delete(ctx context.Context, shorts []string, userID string) error {
+
+	for _, short := range shorts {
+		u, ok := s.db[short]
+		if !ok {
+			return errors.New("not found")
+		}
+		if u.UserID == userID {
+			u.DeletedFlag = true
+			s.db[short] = u
+		}
 	}
-	u.DeletedFlag = true
-	s.db[shorts] = u
 
 	return nil
 }

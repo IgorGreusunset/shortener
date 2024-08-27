@@ -291,21 +291,7 @@ func DeleteBatchURLsHandler(db storage.Repository) http.HandlerFunc {
 			return
 		}
 
-		inputCh := generatorDelete(shorts)
-
-		urlsCh := getURLs(inputCh, db)
-
-		finalCh := permissionToDel(urlsCh, userID.Value)
-
-		go func() {
-			for {
-				id, ok := <-finalCh
-				if !ok {
-					break
-				}
-				db.Delete(context.Background(), id)
-			}
-		}()
+		go db.Delete(context.Background(), shorts, userID.Value)
 
 		res.WriteHeader(http.StatusAccepted)
 	}
