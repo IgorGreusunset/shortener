@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	model "github.com/IgorGreusunset/shortener/internal/app"
@@ -170,10 +169,9 @@ func (db *DBRepositoryAdapter) UsersURLs(userID string) ([]model.URL, error) {
 	return result, nil
 }
 
-func (db *DBRepositoryAdapter) Delete(ctx context.Context, shorts []string, userID string) error {
+func (db *DBRepositoryAdapter) Delete(ctx context.Context, short string) error {
 	_, err := db.DB.ExecContext(ctx,
-		`UPDATE shorten_urls SET is_deleted = TRUE WHERE short_url IN ($1) AND user_id = $2;`,
-		strings.Join(shorts, ", "), userID)
+		`UPDATE shorten_urls SET is_deleted TRUE WHERE short_url = $1;`, shorts)
 	if err != nil {
 		logger.Log.Errorln("error during delete query:", err)
 		return fmt.Errorf("error deleting shorten URLs: %v", err)
