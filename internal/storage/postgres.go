@@ -169,10 +169,11 @@ func (db *DBRepositoryAdapter) UsersURLs(userID string) ([]model.URL, error) {
 	return result, nil
 }
 
-func (db *DBRepositoryAdapter) Delete(ctx context.Context, shorts string) error {
+func (db *DBRepositoryAdapter) Delete(ctx context.Context, short string) error {
 	_, err := db.DB.ExecContext(ctx,
-		`UPDATE shorten_urls SET is_deleted TRUE WHERE short_url = $1;`, shorts)
+		`UPDATE shorten_urls SET is_deleted = TRUE WHERE short_url = $1;`, short)
 	if err != nil {
+		logger.Log.Errorln("error during delete query:", err)
 		return fmt.Errorf("error deleting shorten URLs: %v", err)
 	}
 	return nil
