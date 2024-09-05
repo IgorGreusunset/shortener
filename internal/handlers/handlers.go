@@ -240,16 +240,13 @@ func BathcHandler(db storage.Repository) http.HandlerFunc {
 func URLByUserHandler(db storage.Repository) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		var resBody []model.UsersURLsResponse
-		userID, err := req.Cookie("userID")
-		if errors.Is(err, http.ErrNoCookie) {
+		userID, ok := req.Context().Value("userID").(string)
+		if !ok {
 			res.WriteHeader(http.StatusUnauthorized)
-			return
-		} else if err != nil {
-			res.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		urls, err := db.UsersURLs(userID.Value)
+		urls, err := db.UsersURLs(userID)
 		if err != nil {
 			logger.Log.Errorln("error during db request to get all users urls", err)
 			res.WriteHeader(http.StatusInternalServerError)
@@ -282,17 +279,14 @@ func DeleteBatchURLsHandler(db storage.Repository, delChan chan model.DeleteTask
 			return
 		}
 
-		userID, err := req.Cookie("userID")
-		if errors.Is(err, http.ErrNoCookie) {
+		userID, ok := req.Context().Value("userID").(string)
+		if !ok {
 			res.WriteHeader(http.StatusUnauthorized)
-			return
-		} else if err != nil {
-			res.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		for _, short := range shorts {
-			t := model.NewDeleteTask(short, userID.Value)
+			t := model.NewDeleteTask(short, userID)
 			delChan <- *t
 		}
 
