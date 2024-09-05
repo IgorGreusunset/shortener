@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"os"
 	"sync"
@@ -32,6 +33,8 @@ type Repository interface {
 	GetByID(id string) (model.URL, bool)
 	Ping() error
 	CreateBatch(ctx context.Context, urls []model.URL) error
+	UsersURLs(userID string) ([]model.URL, error)
+	Delete(ctx context.Context, task []model.DeleteTask) error
 }
 
 // Метод для создания новой записи в хранилище
@@ -105,5 +108,34 @@ func (s *Storage) CreateBatch(ctx context.Context, urls []model.URL) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (s *Storage) UsersURLs(userID string) ([]model.URL, error) {
+	result := make([]model.URL, 0)
+	s.mu.RLock()
+	for _, u := range s.db {
+		if u.UserID == userID {
+			result = append(result, u)
+		}
+	}
+	s.mu.RUnlock()
+	return result, nil
+}
+
+func (s *Storage) Delete(ctx context.Context, tasks []model.DeleteTask) error {
+	for _, task := range tasks {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		u, ok := s.db[task.URLID]
+		if !ok {
+			return errors.New("not found")
+		}
+		if u.UserID == task.UserID {
+			u.DeletedFlag = true
+			s.db[task.URLID] = u
+		}
+	}
+
 	return nil
 }

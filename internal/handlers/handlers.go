@@ -4,17 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
-	"log"
-	"net/http"
-	"net/url"
-
 	"github.com/IgorGreusunset/shortener/cmd/config"
 	model "github.com/IgorGreusunset/shortener/internal/app"
 	"github.com/IgorGreusunset/shortener/internal/helpers"
 	"github.com/IgorGreusunset/shortener/internal/logger"
+	"github.com/IgorGreusunset/shortener/internal/middleware"
 	"github.com/IgorGreusunset/shortener/internal/storage"
 	"github.com/go-chi/chi/v5"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
 )
 
 // Handler для обработки Post-запроса на запись новой URL структуры в хранилище
@@ -28,6 +28,8 @@ func PostHandler(db storage.Repository) http.HandlerFunc {
 
 		defer req.Body.Close()
 
+		//logger.Log.Debugln(string(reqBody))
+
 		//Проверяем, что в теле запроса корректный URL-адрес
 		_, err = url.ParseRequestURI(string(reqBody))
 		if err != nil {
@@ -37,9 +39,18 @@ func PostHandler(db storage.Repository) http.HandlerFunc {
 
 		//Генерируем ID для короткой ссылки
 		id := helpers.Generate()
+		var user string
 
 		//Создаем новый экземпляр URL структуры и записываем его в хранилище
 		urlToAdd := model.NewURL(id, string(reqBody))
+		userID, err := req.Cookie("userID")
+		if err != nil {
+			token := req.Header.Get("Authorization")
+			user = middleware.GetUserID(token)
+		} else {
+			user = userID.Value
+		}
+		urlToAdd.UserID = user
 		ctx := context.Background()
 		if err := db.Create(ctx, urlToAdd); err != nil {
 			var uee *storage.URLExistsError
@@ -82,6 +93,11 @@ func GetByIDHandler(db storage.Repository) http.HandlerFunc {
 			return
 		}
 
+		if fullURL.DeletedFlag {
+			res.WriteHeader(http.StatusGone)
+			return
+		}
+
 		//Записываем заголовок ответа
 		res.Header().Set("Location", fullURL.FullURL)
 		res.WriteHeader(http.StatusTemporaryRedirect)
@@ -108,9 +124,18 @@ func APIPostHandler(db storage.Repository) http.HandlerFunc {
 		}
 
 		id := helpers.Generate()
+		var user string
 
 		//Создаем модель и записываем в storage
 		urlToAdd := model.NewURL(id, urlFromRequest.URL)
+		userID, err := req.Cookie("userID")
+		if err != nil {
+			token := req.Header.Get("Authorization")
+			user = middleware.GetUserID(token)
+		} else {
+			user = userID.Value
+		}
+		urlToAdd.UserID = user
 		ctx := context.Background()
 		if err := db.Create(ctx, urlToAdd); err != nil {
 			var uee *storage.URLExistsError
@@ -175,11 +200,20 @@ func BathcHandler(db storage.Repository) http.HandlerFunc {
 		if err != nil {
 			http.Error(res, "Failed decoding request body", http.StatusBadRequest)
 		}
+		var user string
+		userID, err := req.Cookie("userID")
+		if err != nil {
+			token := req.Header.Get("Authorization")
+			user = middleware.GetUserID(token)
+		} else {
+			user = userID.Value
+		}
 
 		//Проходим по слайсу и для каждого элемента создаем model.URL и подготавливаем модель для ответа
 		for _, r := range requests {
 			sh := helpers.Generate()
 			url := model.NewURL(sh, r.URL)
+			url.UserID = user
 			urls = append(urls, *url)
 			w := model.NewAPIBatchResponse(r.ID, config.Base+`/`+sh)
 			shorts = append(shorts, *w)
@@ -201,4 +235,67 @@ func BathcHandler(db storage.Repository) http.HandlerFunc {
 		}
 	}
 
+}
+
+func URLByUserHandler(db storage.Repository) http.HandlerFunc {
+	return func(res http.ResponseWriter, req *http.Request) {
+		var resBody []model.UsersURLsResponse
+		userID, err := req.Cookie("userID")
+		if errors.Is(err, http.ErrNoCookie) {
+			res.WriteHeader(http.StatusUnauthorized)
+			return
+		} else if err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		urls, err := db.UsersURLs(userID.Value)
+		if err != nil {
+			logger.Log.Errorln("error during db request to get all users urls", err)
+			res.WriteHeader(http.StatusInternalServerError)
+		}
+
+		if len(urls) == 0 {
+			res.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		for _, u := range urls {
+			r := model.NewUsersURLsResponse(config.Base+`/`+u.ID, u.FullURL)
+			resBody = append(resBody, *r)
+		}
+
+		res.Header().Set("Content-Type", "application/json")
+		res.WriteHeader(http.StatusOK)
+		if err = json.NewEncoder(res).Encode(resBody); err != nil {
+			http.Error(res, "Error during encoding response", http.StatusInternalServerError)
+		}
+	}
+}
+
+func DeleteBatchURLsHandler(db storage.Repository, delChan chan model.DeleteTask) http.HandlerFunc {
+	return func(res http.ResponseWriter, req *http.Request) {
+		var shorts []string
+		err := json.NewDecoder(req.Body).Decode(&shorts)
+		if err != nil {
+			http.Error(res, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		userID, err := req.Cookie("userID")
+		if errors.Is(err, http.ErrNoCookie) {
+			res.WriteHeader(http.StatusUnauthorized)
+			return
+		} else if err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		for _, short := range shorts {
+			t := model.NewDeleteTask(short, userID.Value)
+			delChan <- *t
+		}
+
+		res.WriteHeader(http.StatusAccepted)
+	}
 }

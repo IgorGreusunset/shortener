@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/IgorGreusunset/shortener/cmd/config"
 	model "github.com/IgorGreusunset/shortener/internal/app"
@@ -53,15 +55,43 @@ func main() {
 
 	}
 
+	delCh := make(chan model.DeleteTask)
+	delList := make([]model.DeleteTask, 0)
+
+	go func() {
+		ticker := time.NewTicker(2*time.Second)
+		defer ticker.Stop()
+
+		for {
+			select{
+			case task := <- delCh:
+				delList = append(delList, task)
+				if len(delList) == 15 {
+					db.Delete(context.Background(), delList)
+					delList = nil
+				}
+			case <- ticker.C:
+				if len(delList) > 0 {
+					db.Delete(context.Background(), delList)
+					delList = nil
+				} 
+			}
+		}
+		
+	}()
+
 	//Подключаем middlewares
 	router.Use(middleware.WithLogging)
 	router.Use(middleware.GzipMiddleware)
+	router.Use(middleware.WithAuth)
 
 	router.Post(`/`, handlers.PostHandler(db))
 	router.Get(`/{id}`, handlers.GetByIDHandler(db))
 	router.Post(`/api/shorten`, handlers.APIPostHandler(db))
 	router.Get(`/ping`, handlers.PingHandler(db))
 	router.Post(`/api/shorten/batch`, handlers.BathcHandler(db))
+	router.Get(`/api/user/urls`, handlers.URLByUserHandler(db))
+	router.Delete(`/api/user/urls`, handlers.DeleteBatchURLsHandler(db, delCh))
 
 	serverAdd := config.Serv
 
