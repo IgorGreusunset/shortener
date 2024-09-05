@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/IgorGreusunset/shortener/cmd/config"
 	model "github.com/IgorGreusunset/shortener/internal/app"
@@ -58,12 +59,24 @@ func main() {
 	delList := make([]model.DeleteTask, 0)
 
 	go func() {
-		for task := range delCh {
+		ticker := time.NewTicker(2*time.Second)
+		defer ticker.Stop()
+
+		for {
+			select{
+			case task := <- delCh:
 				delList = append(delList, task)
 				if len(delList) == 15 {
 					db.Delete(context.Background(), delList)
+					delList = nil
 				}
+			case <- ticker.C:
+				if len(delList) > 0 {
+					db.Delete(context.Background(), delList)
+					delList = nil
+				} 
 			}
+		}
 		
 	}()
 
