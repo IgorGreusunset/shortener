@@ -273,7 +273,7 @@ func URLByUserHandler(db storage.Repository) http.HandlerFunc {
 	}
 }
 
-func DeleteBatchURLsHandler(db storage.Repository) http.HandlerFunc {
+func DeleteBatchURLsHandler(db storage.Repository, delChan chan model.DeleteTask) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		var shorts []string
 		err := json.NewDecoder(req.Body).Decode(&shorts)
@@ -282,68 +282,16 @@ func DeleteBatchURLsHandler(db storage.Repository) http.HandlerFunc {
 			return
 		}
 
-		userID, err := req.Cookie("userID")
-		if errors.Is(err, http.ErrNoCookie) {
-			res.WriteHeader(http.StatusUnauthorized)
-			return
-		} else if err != nil {
-			res.WriteHeader(http.StatusInternalServerError)
-			return
+		user, ok := req.Context().Value("UserID").(string)
+		if !ok{
+			http.Error(res, "Invalid user ID", http.StatusBadRequest)
 		}
 
-		inputCh := generatorDelete(shorts)
-
-		urlsCh := getURLs(inputCh, db)
-
-		finalCh := permissionToDel(urlsCh, userID.Value)
-
-		go func() {
-			for {
-				id, ok := <-finalCh
-				if !ok {
-					break
-				}
-				db.Delete(context.Background(), id)
-			}
-		}()
+		for _, short := range shorts {
+			t := model.NewDeleteTask(short, user)
+			delChan <- *t
+		}
 
 		res.WriteHeader(http.StatusAccepted)
 	}
-}
-
-func generatorDelete(shorts []string) chan string {
-	resChan := make(chan string)
-	go func() {
-		defer close(resChan)
-		for _, short := range shorts {
-			resChan <- short
-		}
-	}()
-
-	return resChan
-}
-
-func getURLs(inputCh chan string, db storage.Repository) chan model.URL {
-	resChan := make(chan model.URL)
-	go func() {
-		defer close(resChan)
-		for input := range inputCh {
-			u, _ := db.GetByID(input)
-			resChan <- u
-		}
-	}()
-	return resChan
-}
-
-func permissionToDel(inputCh chan model.URL, user string) chan string {
-	resChan := make(chan string)
-	go func() {
-		defer close(resChan)
-		for input := range inputCh {
-			if input.UserID == user {
-				resChan <- input.ID
-			}
-		}
-	}()
-	return resChan
 }

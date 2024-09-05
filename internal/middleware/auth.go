@@ -1,11 +1,13 @@
 package middleware
 
 import (
+	"context"
 	"errors"
-	"github.com/golang-jwt/jwt/v4"
-	"github.com/google/uuid"
 	"net/http"
 	"time"
+
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 )
 
 const TokenExp = time.Hour * 24
@@ -101,4 +103,21 @@ func generateSetCookies(w http.ResponseWriter, req *http.Request) {
 		Expires: time.Now().Add(TokenExp),
 	})
 	req.Header.Set("Authorization", token)
+}
+
+func WithUserID(h http.Handler) http.Handler {
+	userFN := func(res http.ResponseWriter, req *http.Request) {
+		userID, err := req.Cookie("userID")
+		if errors.Is(err, http.ErrNoCookie) {
+			http.Error(res, "Unauthorized", http.StatusUnauthorized)
+		} else if err != nil {
+			http.Error(res, "Internal Server Error", http.StatusInternalServerError)
+		}
+
+		ctx := context.WithValue(req.Context(), "UserID", userID.Value)
+		h.ServeHTTP(res, req.WithContext(ctx))
+
+	}
+
+	return http.HandlerFunc(userFN)
 }

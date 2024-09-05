@@ -64,7 +64,7 @@ func (mr *MockRepositoryMockRecorder) CreateBatch(arg0, arg1 interface{}) *gomoc
 }
 
 // Delete mocks base method.
-func (m *MockRepository) Delete(arg0 context.Context, arg1 string) error {
+func (m *MockRepository) Delete(arg0 context.Context, arg1 []model.DeleteTask) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", arg0, arg1)
 	ret0, _ := ret[0].(error)

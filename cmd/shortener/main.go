@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -53,10 +54,24 @@ func main() {
 
 	}
 
+	delCh := make(chan model.DeleteTask)
+	delList := make([]model.DeleteTask, 0)
+
+	go func() {
+		for task := range delCh {
+				delList = append(delList, task)
+				if len(delList) == 15 {
+					db.Delete(context.Background(), delList)
+				}
+			}
+		
+	}()
+
 	//Подключаем middlewares
 	router.Use(middleware.WithLogging)
 	router.Use(middleware.GzipMiddleware)
 	router.Use(middleware.WithAuth)
+	router.Use(middleware.WithUserID)
 
 	router.Post(`/`, handlers.PostHandler(db))
 	router.Get(`/{id}`, handlers.GetByIDHandler(db))
@@ -64,7 +79,7 @@ func main() {
 	router.Get(`/ping`, handlers.PingHandler(db))
 	router.Post(`/api/shorten/batch`, handlers.BathcHandler(db))
 	router.Get(`/api/user/urls`, handlers.URLByUserHandler(db))
-	router.Delete(`/api/user/urls`, handlers.DeleteBatchURLsHandler(db))
+	router.Delete(`/api/user/urls`, handlers.DeleteBatchURLsHandler(db, delCh))
 
 	serverAdd := config.Serv
 

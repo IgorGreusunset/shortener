@@ -36,9 +36,7 @@ func NewDatabase(dbConfig string) (*DBRepositoryAdapter, error) {
 		uuid SERIAL PRIMARY KEY,
 		short_url VARCHAR(50),
 		original_url TEXT,
-    	user_id VARCHAR(36),
-		created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    	is_deleted BOOLEAN DEFAULT 'NO'
+		created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`)
 	if err != nil {
 		tx.Rollback()
@@ -51,6 +49,21 @@ func NewDatabase(dbConfig string) (*DBRepositoryAdapter, error) {
 		logger.Log.Debugln("Error during index creation: %v", err)
 		tx.Rollback()
 		return nil, err
+	}
+
+	//Добавляем столбец user_id
+	_, err = tx.ExecContext(ctx, `ALTER TABLE shorten_urls ADD COLUMN IF NOT EXISTS user_id VARCHAR(36)`)
+	if err != nil {
+		logger.Log.Debugln("Error during user_id column add: %v", err)
+		tx.Rollback()
+		return nil, err
+	}
+
+	//Добавляем столбец is_deleted
+	_, err = tx.ExecContext(ctx, `ALTER TABLE shorten_urls ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT 'NO'`)
+	if err != nil {
+		logger.Log.Debugln("Error during is_deleted column add: %v", err)
+		tx.Rollback()
 	}
 
 	return &DBRepositoryAdapter{DB: db}, tx.Commit()
@@ -171,13 +184,23 @@ func (db *DBRepositoryAdapter) UsersURLs(userID string) ([]model.URL, error) {
 	return result, nil
 }
 
-func (db *DBRepositoryAdapter) Delete(ctx context.Context, short string) error {
-	_, err := db.DB.ExecContext(ctx,
-		`UPDATE shorten_urls SET is_deleted = TRUE WHERE short_url = $1;`, short)
+func (db *DBRepositoryAdapter) Delete(ctx context.Context, tasks []model.DeleteTask) error {
+	tx, err := db.DB.BeginTx(ctx, nil)
 	if err != nil {
-		logger.Log.Errorln("error during delete query:", err)
-		return fmt.Errorf("error deleting shorten URLs: %v", err)
+		logger.Log.Errorf("error during transaction start: %v\n", err)
+		return err
 	}
-	logger.Log.Debugln("Delete shorten URLs:", short)
-	return nil
+
+	for _, task := range tasks {
+		_, err := tx.ExecContext(ctx,
+			`UPDATE shorten_urls SET is_deleted = TRUE WHERE short_url = $1 and user_id = $2;`,
+			task.UrlID, task.UserID)
+		if err != nil {
+			logger.Log.Errorf("error deleting shorten URL: %v\n", err)
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
