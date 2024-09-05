@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -103,23 +102,4 @@ func generateSetCookies(w http.ResponseWriter, req *http.Request) {
 		Expires: time.Now().Add(TokenExp),
 	})
 	req.Header.Set("Authorization", token)
-}
-
-func WithUserID(h http.Handler) http.Handler {
-	userFN := func(res http.ResponseWriter, req *http.Request) {
-		userID, err := req.Cookie("userID")
-		if errors.Is(err, http.ErrNoCookie) {
-			http.Error(res, "Unauthorized", http.StatusUnauthorized)
-			return
-		} else if err != nil {
-			http.Error(res, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-
-		ctx := context.WithValue(req.Context(), "UserID", userID.Value)
-		h.ServeHTTP(res, req.WithContext(ctx))
-
-	}
-
-	return http.HandlerFunc(userFN)
 }
