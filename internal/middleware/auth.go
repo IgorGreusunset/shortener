@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -105,7 +104,7 @@ func generateSetCookies(w http.ResponseWriter, req *http.Request) {
 	req.Header.Set("Authorization", token)
 }
 
-func WithUserID(h http.Handler) http.Handler {
+/*func WithUserID(h http.Handler) http.Handler {
 	userFN := func(res http.ResponseWriter, req *http.Request) {
 		userID, err := req.Cookie("userID")
 		if errors.Is(err, http.ErrNoCookie) {
@@ -120,4 +119,4 @@ func WithUserID(h http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(userFN)
-}
+}*/

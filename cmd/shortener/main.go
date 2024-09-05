@@ -71,7 +71,7 @@ func main() {
 	router.Use(middleware.WithLogging)
 	router.Use(middleware.GzipMiddleware)
 	router.Use(middleware.WithAuth)
-	router.Use(middleware.WithUserID)
+	//router.Use(middleware.WithUserID)
 
 	router.Post(`/`, handlers.PostHandler(db))
 	router.Get(`/{id}`, handlers.GetByIDHandler(db))

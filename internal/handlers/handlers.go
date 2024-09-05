@@ -282,13 +282,17 @@ func DeleteBatchURLsHandler(db storage.Repository, delChan chan model.DeleteTask
 			return
 		}
 
-		user, ok := req.Context().Value("UserID").(string)
-		if !ok{
-			http.Error(res, "Invalid user ID", http.StatusBadRequest)
+		userID, err := req.Cookie("userID")
+		if errors.Is(err, http.ErrNoCookie) {
+			res.WriteHeader(http.StatusUnauthorized)
+			return
+		} else if err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 
 		for _, short := range shorts {
-			t := model.NewDeleteTask(short, user)
+			t := model.NewDeleteTask(short, userID.Value)
 			delChan <- *t
 		}
 

@@ -127,13 +127,13 @@ func (s *Storage) Delete(ctx context.Context, tasks []model.DeleteTask) error {
 	for _, task := range tasks {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		u, ok := s.db[task.UrlID]
+		u, ok := s.db[task.URLID]
 		if !ok {
 			return errors.New("not found")
 		}
 		if u.UserID == task.UserID {
 			u.DeletedFlag = true
-			s.db[task.UrlID] = u
+			s.db[task.URLID] = u
 		}
 	}
 

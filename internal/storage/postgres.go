@@ -194,7 +194,7 @@ func (db *DBRepositoryAdapter) Delete(ctx context.Context, tasks []model.DeleteT
 	for _, task := range tasks {
 		_, err := tx.ExecContext(ctx,
 			`UPDATE shorten_urls SET is_deleted = TRUE WHERE short_url = $1 and user_id = $2;`,
-			task.UrlID, task.UserID)
+			task.URLID, task.UserID)
 		if err != nil {
 			logger.Log.Errorf("error deleting shorten URL: %v\n", err)
 			tx.Rollback()

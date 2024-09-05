@@ -52,10 +52,10 @@ func NewUsersURLsResponse(shortURL, originalURL string) *UsersURLsResponse {
 }
 
 type DeleteTask struct {
-	UrlID  string
+	URLID  string
 	UserID string
 }
 
 func NewDeleteTask(urlID, userID string) *DeleteTask {
-	return &DeleteTask{UrlID: urlID, UserID: userID}
+	return &DeleteTask{URLID: urlID, UserID: userID}
 }
